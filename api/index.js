@@ -17,6 +17,7 @@ import { getProjectContext, getRecentCommits, getOpenIssues } from '../github-in
 import { getBoard, updateBoard, appendBoardInitiative, getRecentMessages, recordMessage, delegateAgent } from '../hive/router.mjs';
 import { BRAIN as bakedBrain } from '../src/braingraph.js';
 import { normModel, modelFor, modelName, MODEL_KEYS, DEFAULT_MODEL, normEffort, effortFor, EFFORT_KEYS } from '../src/models.js';
+import { SEED_TASKS } from './seed-tasks.js';
 
 const cfg = loadConfig();
 const version = '3.6.1-ldoc';
@@ -52,22 +53,8 @@ const loadTasks = () => {
       }
     }
   } catch {}
-  // 3. Fallback default
-  memTasks = [
-    {
-      id: 't-init',
-      dept: 'marketing',
-      agent: 'mlead',
-      title: 'Launch the Death of the PDF viral campaign',
-      text: 'Prepare side-by-side comparison of static PDF vs 3D living document format (.ldocx).',
-      plan: ['Analyze PDF friction points', 'Highlight 3D WebGL & sandbox', 'Draft Show HN post'],
-      eta: 15,
-      state: 'done',
-      addedAt: Date.now() - 3600000,
-      doneAt: Date.now() - 1800000,
-      result: '# Death of the PDF Campaign\n\nStatic PDFs are 30-year-old frozen digital paper. LDoc Studio replaces them with living, 3D-accelerated, air-gapped computational containers.'
-    }
-  ];
+  // 3. Fallback bundled seed tasks (guaranteed on Vercel serverless cold starts)
+  memTasks = Array.isArray(SEED_TASKS) && SEED_TASKS.length > 0 ? [...SEED_TASKS] : [];
   return memTasks;
 };
 
