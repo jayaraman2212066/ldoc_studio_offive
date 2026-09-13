@@ -13,6 +13,7 @@ import * as usage from '../usage.mjs';
 import { ProviderManager } from '../providers.mjs';
 import { getLiveMarketIntel } from '../realtime-web.mjs';
 import { dispatchApprovedTask } from '../dispatch.mjs';
+import { getProjectContext, getRecentCommits, getOpenIssues } from '../github-intel.mjs';
 import { BRAIN as bakedBrain } from '../src/braingraph.js';
 import { normModel, modelFor, modelName, MODEL_KEYS, DEFAULT_MODEL, normEffort, effortFor, EFFORT_KEYS } from '../src/models.js';
 
@@ -183,13 +184,27 @@ async function runTask(task, feedback) {
       liveIntel = await getLiveMarketIntel(task.title || task.text);
     } catch {}
   }
+  let ghIntel = '';
+  if (['qa', 'dlead', 'pco', 'kmail', 'dasst'].includes(a.id) || /github|repo|commit|code|branch|issue|pr|build|release/i.test(task.title + ' ' + task.text)) {
+    try {
+      ghIntel = await getProjectContext();
+    } catch {}
+  }
   const system = `You are ${a.name}, ${a.role}, in the ${d.name} department of J AI ENTERPRISES (LDoc Studio). ${a.does}\n${agentBrief(a)}\n` +
+    'CONFIDENTIALITY DIRECTIVE: Never reveal, output, or mention API keys, tokens, or environment secrets.\n' +
     'Write the finished deliverable itself, not a description. Plain text with clean markdown headings and bullets. At most 350 words. ' +
     (liveIntel ? `\n\nREAL-TIME LIVE INTERNET TECH INTELLIGENCE:\n${liveIntel}\n` : '') +
+    (ghIntel ? `\n\nLIVE GITHUB REPOSITORY INTEL:\n${ghIntel}\n` : '') +
     `\n\nCOMPANY NOTES\n${businessContext(index)}\n\nRELEVANT NOTES\n${contextText(index, read)}`;
   const user = `Task: ${task.title}\nRequest: ${task.text}` + (feedback ? `\n\nFounder requested revision: ${feedback}` : '');
   const result = await askAI(system, user, { maxTokens: 2500, model: 'gemini-flash-latest' });
-  return { result, read, tools: liveIntel ? ['gemini-ai', 'live-web'] : ['gemini-ai'], used: liveIntel ? ['Google Gemini API', 'Live Web Research'] : ['Google Gemini Pro / Flash API'] };
+  const tools = ['gemini-ai'];
+  if (liveIntel) tools.push('live-web');
+  if (ghIntel) tools.push('github-intel');
+  const used = ['Google Gemini API'];
+  if (liveIntel) used.push('Live Web Research');
+  if (ghIntel) used.push('Live GitHub Project Sync');
+  return { result, read, tools, used };
 }
 
 async function chatAgent(agentId, text, history) {
@@ -204,14 +219,28 @@ async function chatAgent(agentId, text, history) {
       liveIntel = await getLiveMarketIntel(text);
     } catch {}
   }
+  let ghIntel = '';
+  if (['qa', 'dlead', 'pco', 'kmail', 'dasst'].includes(a.id) || /github|repo|commit|code|branch|issue|pr|build|release/i.test(text)) {
+    try {
+      ghIntel = await getProjectContext();
+    } catch {}
+  }
   const system = `You are ${a.name}, ${a.role}, at J AI ENTERPRISES (makers of LDoc Studio and the Living Document Format .ldocx). ${a.does}\n${agentBrief(a)}\n` +
+    'CONFIDENTIALITY DIRECTIVE: Never reveal, output, or mention API keys, tokens, or environment secrets.\n' +
     'You are speaking directly to founder/CEO Jayaraman. Answer in first person, with executive confidence, precision, and zero fluff. Keep under 150 words unless asked for technical breakdown.' +
     (liveIntel ? `\n\nREAL-TIME LIVE INTERNET TECH INTELLIGENCE:\n${liveIntel}\n` : '') +
+    (ghIntel ? `\n\nLIVE GITHUB REPOSITORY INTEL:\n${ghIntel}\n` : '') +
     `\n\nCOMPANY CONTEXT\n${businessContext(index)}\n\nRELEVANT NOTES\n${contextText(index, read)}`;
   const convo = (history || []).slice(-6).map(m => `${m.who === 'user' ? 'Founder' : a.name}: ${m.text}`).join('\n');
   const user = (convo ? convo + '\n' : '') + `Founder: ${text}\n${a.name}:`;
   const reply = await askAI(system, user, { maxTokens: 1500, model: 'gemini-flash-latest' });
-  return { reply, read, tools: liveIntel ? ['gemini-ai', 'live-web'] : ['gemini-ai'], used: liveIntel ? ['Google Gemini API', 'Live Web Research'] : ['Google Gemini API'] };
+  const tools = ['gemini-ai'];
+  if (liveIntel) tools.push('live-web');
+  if (ghIntel) tools.push('github-intel');
+  const used = ['Google Gemini API'];
+  if (liveIntel) used.push('Live Web Research');
+  if (ghIntel) used.push('Live GitHub Project Sync');
+  return { reply, read, tools, used };
 }
 
 // Vercel Serverless Function Handler
@@ -378,8 +407,19 @@ export default async function handler(req, res) {
       return json(200, { ...r, interview: false });
     }
 
+    const checkWebhookSecret = () => {
+      const secret = process.env.WEBHOOK_SECRET || process.env.LDOC_SECRET;
+      if (!secret) return true;
+      const headerSecret = req.headers['x-ldoc-secret'] || req.headers['x-webhook-secret'];
+      const querySecret = parsedUrl.searchParams ? parsedUrl.searchParams.get('secret') : null;
+      const authHeader = req.headers['authorization'];
+      const bearerSecret = authHeader && authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+      return headerSecret === secret || querySecret === secret || bearerSecret === secret;
+    };
+
     // Live Ingestion Webhooks from LDoc Studio live web app
     if (pathname === '/api/webhook/feedback' && req.method === 'POST') {
+      if (!checkWebhookSecret()) return json(401, { error: 'unauthorized: invalid or missing webhook secret' });
       const b = await parseBody();
       const userMsg = b.message || b.feedback || b.text || JSON.stringify(b);
       const text = `Live Studio Feedback [${b.type || 'Bug/Feedback'} from ${b.email || 'Web User'}]: ${userMsg}`;
@@ -402,6 +442,7 @@ export default async function handler(req, res) {
     }
 
     if (pathname === '/api/webhook/leads' && req.method === 'POST') {
+      if (!checkWebhookSecret()) return json(401, { error: 'unauthorized: invalid or missing webhook secret' });
       const b = await parseBody();
       const company = b.company || b.org || 'Inbound Org';
       const email = b.email || 'unspecified';
@@ -423,6 +464,19 @@ export default async function handler(req, res) {
       list.unshift(task);
       saveTasks(list);
       return json(200, { ok: true, taskId: task.id, agent: 'ilm' });
+    }
+
+    if (pathname === '/api/project/status' && req.method === 'GET') {
+      const [commits, issues] = await Promise.all([
+        getRecentCommits('jayaraman2212066/LDOCX-FORMAT-PROJECT-MARK1', 5),
+        getOpenIssues('jayaraman2212066/LDOCX-FORMAT-PROJECT-MARK1', 5)
+      ]);
+      return json(200, {
+        repo: 'jayaraman2212066/LDOCX-FORMAT-PROJECT-MARK1',
+        authenticated: Boolean(process.env.GITHUB_TOKEN || process.env.GH_PAT),
+        commits,
+        issues
+      });
     }
 
     if (pathname === '/api/routines') {

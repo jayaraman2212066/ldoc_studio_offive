@@ -43,6 +43,7 @@ import * as usage from './usage.mjs';
 import { ProviderManager } from './providers.mjs';
 import { dispatchApprovedTask } from './dispatch.mjs';
 import { getLiveMarketIntel } from './realtime-web.mjs';
+import { getProjectContext, getRecentCommits, getOpenIssues } from './github-intel.mjs';
 import { normModel, modelFor, modelArgs, modelId, modelName, MODEL_KEYS, DEFAULT_MODEL, normEffort, effortFor, effortName, EFFORT_KEYS } from './src/models.js';
 import { parseWhen, describe, valid as validWhen, untilText } from './src/when.js';
 
@@ -492,7 +493,17 @@ const server = http.createServer(async (req, res) => {
       const r = await chat(agent, String(text).trim(), history);
       return json(res, 200, { ...r, interview: false });
     }
+    const checkWebhookSecret = () => {
+      const secret = process.env.WEBHOOK_SECRET || process.env.LDOC_SECRET;
+      if (!secret) return true;
+      const headerSecret = req.headers['x-ldoc-secret'] || req.headers['x-webhook-secret'];
+      const querySecret = url.searchParams ? url.searchParams.get('secret') : null;
+      const authHeader = req.headers['authorization'];
+      const bearerSecret = authHeader && authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+      return headerSecret === secret || querySecret === secret || bearerSecret === secret;
+    };
     if (url.pathname === '/api/webhook/feedback' && req.method === 'POST') {
+      if (!checkWebhookSecret()) return json(res, 401, { error: 'unauthorized: invalid or missing webhook secret' });
       const b = await body(req);
       const userMsg = b.message || b.feedback || b.text || JSON.stringify(b);
       const text = `Live Studio Feedback [${b.type || 'Bug/Feedback'} from ${b.email || 'Web User'}]: ${userMsg}`;
@@ -502,6 +513,7 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, { ok: true, taskId: task.id, agent: 'cmail' });
     }
     if (url.pathname === '/api/webhook/leads' && req.method === 'POST') {
+      if (!checkWebhookSecret()) return json(res, 401, { error: 'unauthorized: invalid or missing webhook secret' });
       const b = await body(req);
       const company = b.company || b.org || 'Inbound Org';
       const email = b.email || 'unspecified';
@@ -511,6 +523,18 @@ const server = http.createServer(async (req, res) => {
       const list = load(); list.unshift(task); save(list);
       console.log(`📡 [WEBHOOK] Live commercial lead received → ilm: ${task.title}`);
       return json(res, 200, { ok: true, taskId: task.id, agent: 'ilm' });
+    }
+    if (url.pathname === '/api/project/status' && req.method === 'GET') {
+      const [commits, issues] = await Promise.all([
+        getRecentCommits('jayaraman2212066/LDOCX-FORMAT-PROJECT-MARK1', 5),
+        getOpenIssues('jayaraman2212066/LDOCX-FORMAT-PROJECT-MARK1', 5)
+      ]);
+      return json(res, 200, {
+        repo: 'jayaraman2212066/LDOCX-FORMAT-PROJECT-MARK1',
+        authenticated: Boolean(process.env.GITHUB_TOKEN || process.env.GH_PAT),
+        commits,
+        issues
+      });
     }
     json(res, 404, { error: 'not found' });
   } catch (e) { console.error(e); json(res, 500, { error: e.message }); }
