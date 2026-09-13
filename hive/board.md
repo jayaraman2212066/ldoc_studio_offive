@@ -10,16 +10,16 @@ Revolutionize digital documents by establishing **`.ldocx` (Living Document Form
 
 ---
 
-## 2. Active Sprint Initiatives
-- **[SALES & COMMERCE] Enterprise Air-Gapped Fleet Tier ($499/yr)**:
-  - Lead Agent: `ilm` (Inbound Leads) & `piper` (Proposals)
-  - Objective: Finalize air-gapped security compliance sheet and proposal deck for high-assurance clients (e.g. NASA JPL, defense research).
-- **[MARKETING & VIRAL] "The Death of the PDF" Show HN Campaign**:
-  - Lead Agent: `mlead` (Marketing Lead) & `riley` (Research)
-  - Objective: Track HackerNews sentiment on Typst, PDF bloat, and CRDTs; draft viral comparison matrix of PDF vs .ldocx.
-- **[ENGINEERING & DELIVERY] Core Container & Offline Sandbox Spec**:
-  - Lead Agent: `dlead` (Delivery Lead) & `qa` (Quality Assurance)
-  - Objective: Ensure format specification v1.2 strictly passes offline integrity checks without external CDN dependencies.
+## 2. Active Sprint Initiatives (Zero-to-One Launch)
+- **[MARKETING & LAUNCH] "Show HN: LDoc Studio — The Death of the PDF"**:
+  - Lead Agents: `mlead` (Marketing Lead), `riley` (Research), `iggy` (Social)
+  - Objective: Draft the official Show HN launch post and developer announcement. Focus on why static PDFs (1993) fail modern engineering, and how `.ldocx` introduces 3D WebGL, executable sandboxes, and zero-telemetry air-gapping.
+- **[SALES & ENTERPRISE] Enterprise Air-Gapped Fleet Tier ($499/yr)**:
+  - Lead Agents: `ilm` (Inbound Leads) & `piper` (Proposals)
+  - Objective: Finalize the Air-Gapped Security Whitepaper and $499/seat/yr proposal deck for defense and engineering teams (e.g. Boeing, NASA JPL).
+- **[ENGINEERING & QUALITY] Core Container Spec & Studio Bridge**:
+  - Lead Agents: `dlead` (Delivery Lead) & `qa` (Quality Assurance)
+  - Objective: Ensure format specification v1.2 runs offline with zero external network calls; monitor inbound feedback from `ldoc-studios.vercel.app`.
 
 ---
 
