@@ -23,50 +23,64 @@ const version = '3.6.1-ldoc';
 const BRAIN = path.resolve(ROOT, cfg.brain || './brain');
 const NOTES_DIR = path.join(BRAIN, 'Agents Office');
 
-// Serverless storage fallback (use /tmp on serverless environments if ROOT is read-only)
-let DATA = path.join(ROOT, 'data');
-try {
-  fs.mkdirSync(DATA, { recursive: true });
-} catch {
-  DATA = path.join('/tmp', 'agents-office-data');
-  fs.mkdirSync(DATA, { recursive: true });
-}
-const FILE = path.join(DATA, 'tasks.json');
+// Robust serverless storage with bundled seed fallback
+const SEED_FILE = path.join(ROOT, 'data', 'tasks.json');
+const TMP_DIR = path.join('/tmp', 'agents-office-data');
+const TMP_FILE = path.join(TMP_DIR, 'tasks.json');
 
 // In-memory cache for serverless invocation speed
 let memTasks = null;
 const loadTasks = () => {
   if (memTasks) return memTasks;
+  // 1. Try reading /tmp writable storage (contains changes made during warm invocations)
   try {
-    memTasks = JSON.parse(fs.readFileSync(FILE, 'utf8'));
-  } catch {
-    memTasks = [
-      {
-        id: 't-init',
-        dept: 'marketing',
-        agent: 'mlead',
-        title: 'Launch the Death of the PDF viral campaign',
-        text: 'Prepare side-by-side comparison of static PDF vs 3D living document format (.ldocx).',
-        plan: ['Analyze PDF friction points', 'Highlight 3D WebGL & sandbox', 'Draft Show HN post'],
-        eta: 15,
-        state: 'done',
-        addedAt: Date.now() - 3600000,
-        doneAt: Date.now() - 1800000,
-        result: '# Death of the PDF Campaign\n\nStatic PDFs are 30-year-old frozen digital paper. LDoc Studio replaces them with living, 3D-accelerated, air-gapped computational containers.'
+    if (fs.existsSync(TMP_FILE)) {
+      const data = JSON.parse(fs.readFileSync(TMP_FILE, 'utf8'));
+      if (Array.isArray(data) && data.length > 0) {
+        memTasks = data;
+        return memTasks;
       }
-    ];
-  }
+    }
+  } catch {}
+  // 2. Try reading bundled repository data/tasks.json (committed project tasks)
+  try {
+    if (fs.existsSync(SEED_FILE)) {
+      const data = JSON.parse(fs.readFileSync(SEED_FILE, 'utf8'));
+      if (Array.isArray(data) && data.length > 0) {
+        memTasks = data;
+        return memTasks;
+      }
+    }
+  } catch {}
+  // 3. Fallback default
+  memTasks = [
+    {
+      id: 't-init',
+      dept: 'marketing',
+      agent: 'mlead',
+      title: 'Launch the Death of the PDF viral campaign',
+      text: 'Prepare side-by-side comparison of static PDF vs 3D living document format (.ldocx).',
+      plan: ['Analyze PDF friction points', 'Highlight 3D WebGL & sandbox', 'Draft Show HN post'],
+      eta: 15,
+      state: 'done',
+      addedAt: Date.now() - 3600000,
+      doneAt: Date.now() - 1800000,
+      result: '# Death of the PDF Campaign\n\nStatic PDFs are 30-year-old frozen digital paper. LDoc Studio replaces them with living, 3D-accelerated, air-gapped computational containers.'
+    }
+  ];
   return memTasks;
 };
 
 const saveTasks = list => {
   memTasks = list;
   try {
-    fs.mkdirSync(path.dirname(FILE), { recursive: true });
-    fs.writeFileSync(FILE, JSON.stringify(list, null, 2));
-  } catch (err) {
-    // Read-only filesystem in Vercel - in-memory retains state across warm invocations
-  }
+    fs.mkdirSync(TMP_DIR, { recursive: true });
+    fs.writeFileSync(TMP_FILE, JSON.stringify(list, null, 2));
+  } catch {}
+  try {
+    fs.mkdirSync(path.dirname(SEED_FILE), { recursive: true });
+    fs.writeFileSync(SEED_FILE, JSON.stringify(list, null, 2));
+  } catch {}
 };
 
 const nid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);

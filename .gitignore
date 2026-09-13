@@ -1,7 +1,8 @@
 node_modules/
 dist/*
 !dist/command-centre-v2.html
-data/
+data/*
+!data/tasks.json
 office.config.local.json
 office.agents.local.json
 brain/Agents Office/*
