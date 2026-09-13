@@ -19,6 +19,7 @@ mkdirSync('dist', { recursive: true });
 writeFileSync('dist/command-centre-v2.html', html);
 mkdirSync('public', { recursive: true });
 writeFileSync('public/index.html', html);
+writeFileSync('public/command-centre-v2.html', html);
 
 // dev variant with external script for faster iteration
 mkdirSync('dist', { recursive: true });

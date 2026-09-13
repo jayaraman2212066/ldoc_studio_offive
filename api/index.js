@@ -11,6 +11,8 @@ import * as onboard from '../onboard.mjs';
 import * as routines from '../routines.mjs';
 import * as usage from '../usage.mjs';
 import { ProviderManager } from '../providers.mjs';
+import { getLiveMarketIntel } from '../realtime-web.mjs';
+import { dispatchApprovedTask } from '../dispatch.mjs';
 import { BRAIN as bakedBrain } from '../src/braingraph.js';
 import { normModel, modelFor, modelName, MODEL_KEYS, DEFAULT_MODEL, normEffort, effortFor, EFFORT_KEYS } from '../src/models.js';
 
@@ -175,12 +177,19 @@ async function runTask(task, feedback) {
   const d = DEPTS[a.department];
   const index = vaultIndex();
   const read = relevantNotes(index, a.department, task.title + ' ' + task.text);
+  let liveIntel = '';
+  if (['riley', 'scout', 'newt', 'mlead', 'pros'].includes(a.id) || /news|trend|competitor|market|latest|pricing|update|twitter|hackernews/i.test(task.title + ' ' + task.text)) {
+    try {
+      liveIntel = await getLiveMarketIntel(task.title || task.text);
+    } catch {}
+  }
   const system = `You are ${a.name}, ${a.role}, in the ${d.name} department of J AI ENTERPRISES (LDoc Studio). ${a.does}\n${agentBrief(a)}\n` +
     'Write the finished deliverable itself, not a description. Plain text with clean markdown headings and bullets. At most 350 words. ' +
+    (liveIntel ? `\n\nREAL-TIME LIVE INTERNET TECH INTELLIGENCE:\n${liveIntel}\n` : '') +
     `\n\nCOMPANY NOTES\n${businessContext(index)}\n\nRELEVANT NOTES\n${contextText(index, read)}`;
   const user = `Task: ${task.title}\nRequest: ${task.text}` + (feedback ? `\n\nFounder requested revision: ${feedback}` : '');
   const result = await askAI(system, user, { maxTokens: 2500, model: 'gemini-flash-latest' });
-  return { result, read, tools: ['gemini-ai'], used: ['Google Gemini Pro / Flash API'] };
+  return { result, read, tools: liveIntel ? ['gemini-ai', 'live-web'] : ['gemini-ai'], used: liveIntel ? ['Google Gemini API', 'Live Web Research'] : ['Google Gemini Pro / Flash API'] };
 }
 
 async function chatAgent(agentId, text, history) {
@@ -189,13 +198,20 @@ async function chatAgent(agentId, text, history) {
   const d = DEPTS[a.department];
   const index = vaultIndex();
   const read = relevantNotes(index, a.department, text, 3);
+  let liveIntel = '';
+  if (['riley', 'scout', 'newt', 'mlead', 'pros'].includes(a.id) || /news|trend|competitor|market|latest|pricing|update|twitter|hackernews/i.test(text)) {
+    try {
+      liveIntel = await getLiveMarketIntel(text);
+    } catch {}
+  }
   const system = `You are ${a.name}, ${a.role}, at J AI ENTERPRISES (makers of LDoc Studio and the Living Document Format .ldocx). ${a.does}\n${agentBrief(a)}\n` +
     'You are speaking directly to founder/CEO Jayaraman. Answer in first person, with executive confidence, precision, and zero fluff. Keep under 150 words unless asked for technical breakdown.' +
+    (liveIntel ? `\n\nREAL-TIME LIVE INTERNET TECH INTELLIGENCE:\n${liveIntel}\n` : '') +
     `\n\nCOMPANY CONTEXT\n${businessContext(index)}\n\nRELEVANT NOTES\n${contextText(index, read)}`;
   const convo = (history || []).slice(-6).map(m => `${m.who === 'user' ? 'Founder' : a.name}: ${m.text}`).join('\n');
   const user = (convo ? convo + '\n' : '') + `Founder: ${text}\n${a.name}:`;
   const reply = await askAI(system, user, { maxTokens: 1500, model: 'gemini-flash-latest' });
-  return { reply, read, tools: ['gemini-ai'], used: ['Google Gemini API'] };
+  return { reply, read, tools: liveIntel ? ['gemini-ai', 'live-web'] : ['gemini-ai'], used: liveIntel ? ['Google Gemini API', 'Live Web Research'] : ['Google Gemini API'] };
 }
 
 // Vercel Serverless Function Handler
@@ -345,6 +361,11 @@ export default async function handler(req, res) {
         task.state = 'done';
         task.approved = true;
         task.approvedAt = Date.now();
+        try {
+          task.dispatch = await dispatchApprovedTask(task);
+        } catch (e) {
+          task.dispatchError = e.message;
+        }
         saveTasks(list);
         return json(200, task);
       }
@@ -355,6 +376,53 @@ export default async function handler(req, res) {
       if (!b.text) return json(400, { error: 'empty message' });
       const r = await chatAgent(b.agent, b.text, b.history);
       return json(200, { ...r, interview: false });
+    }
+
+    // Live Ingestion Webhooks from LDoc Studio live web app
+    if (pathname === '/api/webhook/feedback' && req.method === 'POST') {
+      const b = await parseBody();
+      const userMsg = b.message || b.feedback || b.text || JSON.stringify(b);
+      const text = `Live Studio Feedback [${b.type || 'Bug/Feedback'} from ${b.email || 'Web User'}]: ${userMsg}`;
+      const task = {
+        id: nid(),
+        dept: 'emails',
+        agent: 'cmail',
+        title: `Feedback: ${String(userMsg).slice(0, 40)}...`,
+        text,
+        plan: ['Analyze incoming report', 'Check format spec / QA', 'Formulate user response'],
+        eta: 15,
+        state: 'next',
+        addedAt: Date.now(),
+        by: 'webhook'
+      };
+      const list = loadTasks();
+      list.unshift(task);
+      saveTasks(list);
+      return json(200, { ok: true, taskId: task.id, agent: 'cmail' });
+    }
+
+    if (pathname === '/api/webhook/leads' && req.method === 'POST') {
+      const b = await parseBody();
+      const company = b.company || b.org || 'Inbound Org';
+      const email = b.email || 'unspecified';
+      const plan = b.plan || b.interest || 'Enterprise Fleet / Studio Pro';
+      const text = `Inbound Commercial Lead: ${company} (${b.teamSize || '1-10'} seats). Contact: ${email}. Target Plan: ${plan}. Message: ${b.message || 'Requested enterprise pricing or demo.'}`;
+      const task = {
+        id: nid(),
+        dept: 'sales',
+        agent: 'ilm',
+        title: `Enterprise Lead: ${company} (${plan})`,
+        text,
+        plan: ['Enrich company tech stack', 'Check air-gap / fleet requirements', 'Generate proposal from offer-ladder'],
+        eta: 15,
+        state: 'next',
+        addedAt: Date.now(),
+        by: 'webhook'
+      };
+      const list = loadTasks();
+      list.unshift(task);
+      saveTasks(list);
+      return json(200, { ok: true, taskId: task.id, agent: 'ilm' });
     }
 
     if (pathname === '/api/routines') {

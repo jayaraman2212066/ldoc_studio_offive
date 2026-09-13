@@ -41,6 +41,8 @@ import * as onboard from './onboard.mjs';
 import * as routines from './routines.mjs';
 import * as usage from './usage.mjs';
 import { ProviderManager } from './providers.mjs';
+import { dispatchApprovedTask } from './dispatch.mjs';
+import { getLiveMarketIntel } from './realtime-web.mjs';
 import { normModel, modelFor, modelArgs, modelId, modelName, MODEL_KEYS, DEFAULT_MODEL, normEffort, effortFor, effortName, EFFORT_KEYS } from './src/models.js';
 import { parseWhen, describe, valid as validWhen, untilText } from './src/when.js';
 
@@ -443,6 +445,7 @@ const server = http.createServer(async (req, res) => {
       const { feedback } = m[2] === 'reject' ? await body(req) : {};
       const note = String(feedback || '').trim();
       console.log(`${m[2] === 'approve' ? '✅' : '↩'} ${task.id} ${m[2] === 'approve' ? 'approved — ' + agentName(task.agent) + ' is sending' : 'sent back: ' + note.slice(0, 80)}`);
+      if (m[2] === 'approve') dispatchApprovedTask(task).catch(e => console.warn('dispatch error:', e.message));
       enqueue(() => runServerTask(task.id, m[2] === 'approve' ? { approve: true } : { feedback: note || 'Not this. Rework it.' }))
         .then(t => { if (m[2] === 'reject' && note && t && !t.error) { const a = AGENTS.find(x => x.id === t.agent); return learn.classify(ask, a, t, note).then(v => { const r = learn.record(BRAIN, a, t, note, v); console.log(`  ↳ ${a.name} ${r.standing ? 'learned a rule' : 'noted a one-off'}: ${r.line.slice(0, 100)}`); }); } })
         .catch(e => console.warn('approval:', e.message));
@@ -488,6 +491,26 @@ const server = http.createServer(async (req, res) => {
       }
       const r = await chat(agent, String(text).trim(), history);
       return json(res, 200, { ...r, interview: false });
+    }
+    if (url.pathname === '/api/webhook/feedback' && req.method === 'POST') {
+      const b = await body(req);
+      const userMsg = b.message || b.feedback || b.text || JSON.stringify(b);
+      const text = `Live Studio Feedback [${b.type || 'Bug/Feedback'} from ${b.email || 'Web User'}]: ${userMsg}`;
+      const task = { id: nid(), dept: 'emails', agent: 'cmail', title: `Feedback: ${String(userMsg).slice(0, 40)}...`, text, plan: ['Analyze incoming report', 'Check format spec / QA', 'Formulate user response'], eta: 15, state: 'next', addedAt: Date.now(), by: 'webhook' };
+      const list = load(); list.unshift(task); save(list);
+      console.log(`📡 [WEBHOOK] Live user feedback received → cmail: ${task.title}`);
+      return json(res, 200, { ok: true, taskId: task.id, agent: 'cmail' });
+    }
+    if (url.pathname === '/api/webhook/leads' && req.method === 'POST') {
+      const b = await body(req);
+      const company = b.company || b.org || 'Inbound Org';
+      const email = b.email || 'unspecified';
+      const plan = b.plan || b.interest || 'Enterprise Fleet / Studio Pro';
+      const text = `Inbound Commercial Lead: ${company} (${b.teamSize || '1-10'} seats). Contact: ${email}. Target Plan: ${plan}. Message: ${b.message || 'Requested enterprise pricing or demo.'}`;
+      const task = { id: nid(), dept: 'sales', agent: 'ilm', title: `Enterprise Lead: ${company} (${plan})`, text, plan: ['Enrich company tech stack', 'Check air-gap / fleet requirements', 'Generate proposal from offer-ladder'], eta: 15, state: 'next', addedAt: Date.now(), by: 'webhook' };
+      const list = load(); list.unshift(task); save(list);
+      console.log(`📡 [WEBHOOK] Live commercial lead received → ilm: ${task.title}`);
+      return json(res, 200, { ok: true, taskId: task.id, agent: 'ilm' });
     }
     json(res, 404, { error: 'not found' });
   } catch (e) { console.error(e); json(res, 500, { error: e.message }); }
