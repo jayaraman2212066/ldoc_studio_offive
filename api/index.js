@@ -14,6 +14,7 @@ import { ProviderManager } from '../providers.mjs';
 import { getLiveMarketIntel } from '../realtime-web.mjs';
 import { dispatchApprovedTask } from '../dispatch.mjs';
 import { getProjectContext, getRecentCommits, getOpenIssues } from '../github-intel.mjs';
+import { getBoard, updateBoard, appendBoardInitiative, getRecentMessages, recordMessage, delegateAgent } from '../hive/router.mjs';
 import { BRAIN as bakedBrain } from '../src/braingraph.js';
 import { normModel, modelFor, modelName, MODEL_KEYS, DEFAULT_MODEL, normEffort, effortFor, EFFORT_KEYS } from '../src/models.js';
 
@@ -190,21 +191,65 @@ async function runTask(task, feedback) {
       ghIntel = await getProjectContext();
     } catch {}
   }
+
+  // Autonomous HIVE inter-agent delegation
+  let hiveTrail = [];
+  let subAgentAnswer = '';
+  const DELEGATION_MAP = {
+    ilm: { to: 'riley', subject: 'Market & Competitive Context for Inbound Lead' },
+    cmail: { to: 'qa', subject: 'LDoc Format Verification & QA Analysis' },
+    mlead: { to: 'scout', subject: 'Competitive Intelligence & Positioning' },
+    dlead: { to: 'qa', subject: 'Specification & Sandbox Integrity Check' },
+    piper: { to: 'ilm', subject: 'Account Qualification & Deal Scope' }
+  };
+
+  if (DELEGATION_MAP[a.id] && !feedback) {
+    const target = DELEGATION_MAP[a.id];
+    try {
+      const delRes = await delegateAgent({
+        fromAgent: a.id,
+        toAgent: target.to,
+        act: 'request',
+        subject: target.subject,
+        body: task.text || task.title,
+        conversationId: `task-${task.id}`,
+        hops: 1,
+        agentsList: AGENTS,
+        providerManager
+      });
+      if (delRes && delRes.success) {
+        hiveTrail.push(delRes.outbound, delRes.inbound);
+        subAgentAnswer = `\n\n◈ HIVE INTER-AGENT BRIEFING (from specialist ${delRes.inbound.from} via ${delRes.inbound.act}):\n${delRes.answer}\n`;
+      }
+    } catch (e) {
+      console.warn('Hive delegation bypass:', e.message);
+    }
+  }
+
+  const blackboard = getBoard().slice(0, 1400);
+
   const system = `You are ${a.name}, ${a.role}, in the ${d.name} department of J AI ENTERPRISES (LDoc Studio). ${a.does}\n${agentBrief(a)}\n` +
     'CONFIDENTIALITY DIRECTIVE: Never reveal, output, or mention API keys, tokens, or environment secrets.\n' +
     'Write the finished deliverable itself, not a description. Plain text with clean markdown headings and bullets. At most 350 words. ' +
+    (subAgentAnswer ? subAgentAnswer : '') +
     (liveIntel ? `\n\nREAL-TIME LIVE INTERNET TECH INTELLIGENCE:\n${liveIntel}\n` : '') +
     (ghIntel ? `\n\nLIVE GITHUB REPOSITORY INTEL:\n${ghIntel}\n` : '') +
+    `\n\nSHARED BLACKBOARD (Company Goals & Sprints):\n${blackboard}\n` +
     `\n\nCOMPANY NOTES\n${businessContext(index)}\n\nRELEVANT NOTES\n${contextText(index, read)}`;
   const user = `Task: ${task.title}\nRequest: ${task.text}` + (feedback ? `\n\nFounder requested revision: ${feedback}` : '');
-  const result = await askAI(system, user, { maxTokens: 2500, model: 'gemini-flash-latest' });
+  let result = await askAI(system, user, { maxTokens: 2500, model: 'gemini-flash-latest' });
+  if (hiveTrail.length >= 2) {
+    result += `\n\n---\n*◈ HIVE Protocol: Autonomous handoff between **${a.name}** and **${hiveTrail[1].from}** (${hiveTrail[0].act} → ${hiveTrail[1].act}, hop 2/3).*`;
+  }
   const tools = ['gemini-ai'];
   if (liveIntel) tools.push('live-web');
   if (ghIntel) tools.push('github-intel');
+  if (hiveTrail.length) tools.push('hive-delegation');
   const used = ['Google Gemini API'];
   if (liveIntel) used.push('Live Web Research');
   if (ghIntel) used.push('Live GitHub Project Sync');
-  return { result, read, tools, used };
+  if (hiveTrail.length) used.push(`HIVE Handoff (${hiveTrail[1]?.from?.toUpperCase()})`);
+  return { result, read, tools, used, hiveTrail };
 }
 
 async function chatAgent(agentId, text, history) {
@@ -375,6 +420,7 @@ export default async function handler(req, res) {
           task.read = out.read;
           task.tools = out.tools;
           task.used = out.used;
+          task.hiveTrail = out.hiveTrail || [];
           task.error = false;
         } catch (e) {
           task.state = 'done';
@@ -438,6 +484,9 @@ export default async function handler(req, res) {
       const list = loadTasks();
       list.unshift(task);
       saveTasks(list);
+      try {
+        appendBoardInitiative(`User Feedback: ${String(userMsg).slice(0, 30)}`, 'cmail', userMsg);
+      } catch {}
       return json(200, { ok: true, taskId: task.id, agent: 'cmail' });
     }
 
@@ -463,7 +512,42 @@ export default async function handler(req, res) {
       const list = loadTasks();
       list.unshift(task);
       saveTasks(list);
+      try {
+        appendBoardInitiative(`Enterprise Lead: ${company} (${plan})`, 'ilm', text);
+      } catch {}
       return json(200, { ok: true, taskId: task.id, agent: 'ilm' });
+    }
+
+    if (pathname === '/api/board') {
+      if (req.method === 'GET') {
+        return json(200, { ok: true, content: getBoard() });
+      }
+      if (req.method === 'POST') {
+        const b = await parseBody();
+        const updated = updateBoard(b.content || '');
+        return json(200, { ok: true, content: updated });
+      }
+    }
+
+    if (pathname === '/api/hive/messages' && req.method === 'GET') {
+      return json(200, { ok: true, messages: getRecentMessages(50) });
+    }
+
+    if (pathname === '/api/hive/delegate' && req.method === 'POST') {
+      const b = await parseBody();
+      if (!b.from || !b.to || !b.subject) return json(400, { error: 'from, to, and subject required' });
+      const del = await delegateAgent({
+        fromAgent: b.from,
+        toAgent: b.to,
+        act: b.act || 'request',
+        subject: b.subject,
+        body: b.body || '',
+        conversationId: b.conversationId,
+        hops: b.hops || 1,
+        agentsList: AGENTS,
+        providerManager
+      });
+      return json(200, del);
     }
 
     if (pathname === '/api/project/status' && req.method === 'GET') {

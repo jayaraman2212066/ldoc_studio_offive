@@ -1378,6 +1378,8 @@ resize();
     if (LAYOUT[b] && b !== 'brain') tasks.openFor(b); else tasks.open();
   }
   syncOverviewBtn();
+  const btnBoard = document.getElementById('btnBoard');
+  if (btnBoard) btnBoard.addEventListener('click', () => { if (tasks) tasks.toggle(); });
 }
 window.CC = { flyTo, zoomToDept, zoomOut, zoomToApproval, requestApproval, openAgent, view, applyCamera, R, emotes,
   setCam, setDark, brain, connectorReveal: () => mcp.startReveal(performance.now()),

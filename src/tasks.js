@@ -722,15 +722,39 @@ export function initTasks(ctx) {
   const el = document.createElement('div'); el.id = 'board'; document.body.appendChild(el);
   const dim = document.createElement('div'); dim.id = 'boardDim'; document.body.appendChild(dim);
   dim.addEventListener('click', close);
+
+  let activeBoardTab = 'kanban';
+  let cachedBoardText = '';
+  let cachedHiveMessages = [];
+  let isEditingBoard = false;
+
+  async function fetchBoardContent() {
+    if (!live) return;
+    try {
+      const res = await fetch(API + '/board').then(r => r.json());
+      if (res && res.ok && res.content) cachedBoardText = res.content;
+    } catch {}
+  }
+
+  async function fetchHiveMessages() {
+    if (!live) return;
+    try {
+      const res = await fetch(API + '/hive/messages').then(r => r.json());
+      if (res && res.ok && Array.isArray(res.messages)) cachedHiveMessages = res.messages;
+    } catch {}
+  }
+
   function cardHTML(t) {
     const a = agentOf(t.agent), chip = DEPTS[t.dept].chip;
     const pct = Math.round(t.progress * 100);
     const av = `<span class="tk-av" style="border-color:${chip};background:${chip}55">${a.name[0]}</span>`;
+    const isHive = t.tools?.includes('hive-delegation') || (t.used && t.used.some(u => String(u).includes('HIVE')));
+    const hiveBadge = isHive ? `<span style="background:#E8F0FE;color:#1967D2;font-size:7.5px;font-weight:700;padding:1px 5px;border-radius:99px;margin-right:4px;">◈ HIVE</span>` : '';
     let meta;
-    if (t.state === 'done') meta = `<span class="tk-tick">✓</span><span>${a.name}</span><span class="tk-pct">${t.approved ? 'APPROVED · ' : ''}${t.modelUsed ? modelName(t.modelUsed).toUpperCase() + ' · ' : ''}${timeStr(t.doneAt)}</span>`;
-    else if (t.state === 'waiting') meta = `${av}<span>${a.name}</span><span class="tk-chip">WAITING ${span(Date.now() - t.changedAt).toUpperCase()}</span>`;
-    else if (t.state === 'doing') meta = `${av}<span>${a.name}</span><span class="tk-pct" data-pct="${t.id}">${t.agent === 'vid' ? 'RENDER · ' : ''}${pct}%</span>`;
-    else meta = `${av}<span>${a.name}</span><span class="tk-pct">${span(Date.now() - t.addedAt).toUpperCase()} IN BACKLOG</span>`;
+    if (t.state === 'done') meta = `<span class="tk-tick">✓</span>${hiveBadge}<span>${a.name}</span><span class="tk-pct">${t.approved ? 'APPROVED · ' : ''}${t.modelUsed ? modelName(t.modelUsed).toUpperCase() + ' · ' : ''}${timeStr(t.doneAt)}</span>`;
+    else if (t.state === 'waiting') meta = `${av}${hiveBadge}<span>${a.name}</span><span class="tk-chip">WAITING ${span(Date.now() - t.changedAt).toUpperCase()}</span>`;
+    else if (t.state === 'doing') meta = `${av}${hiveBadge}<span>${a.name}</span><span class="tk-pct" data-pct="${t.id}">${t.agent === 'vid' ? 'RENDER · ' : ''}${pct}%</span>`;
+    else meta = `${av}${hiveBadge}<span>${a.name}</span><span class="tk-pct">${span(Date.now() - t.addedAt).toUpperCase()} IN BACKLOG</span>`;
     return `<div class="tk ${t.state}${t.revised ? ' rev' : ''}" data-id="${t.id}" data-dept="${t.dept}">
       <div class="tk-t">${t.routine ? '⏱ ' : ''}${esc(t.title)}</div><div class="tk-m">${meta}</div>
       ${t.state === 'doing' ? `<div class="tk-bar"><i data-bar="${t.id}" style="width:${pct}%"></i></div>` : ''}</div>`;
@@ -748,12 +772,76 @@ export function initTasks(ctx) {
       <div class="tk-m"><span class="tk-av" style="border-color:${chip};background:${chip}55">${a.name[0]}</span><span>${a.name} · ${modelName(r.model || officeModel).toUpperCase()}</span><span class="tk-pct">${r.paused ? 'PAUSED' : esc(untilText(r.nextAt).toUpperCase())}</span></div></div>`;
   }
   const COLS = [['sched', 'SCHEDULED'], ['next', 'BACKLOG'], ['doing', 'IN PROGRESS'], ['waiting', 'WAITING ON APPROVAL'], ['done', 'DONE']];
+
   function companyHTML() {
     const tot = st => DEPT_KEYS.reduce((s, k) => s + deptTasks(k, st).length, 0);
     const doneAll = DEPT_KEYS.reduce((s, k) => s + doneCount[k], 0);
-    return `<div class="bd-head">
-        <span class="b-name"><span class="bd-title">Agents Office</span>Today's board</span>
-        <span class="bd-stats"><span>SCHEDULED<b>${routines.length}</b></span><span>IN PROGRESS<b>${tot('doing')}</b></span><span>BACKLOG<b>${tot('next')}</b></span><span>WAITING<b>${tot('waiting')}</b></span><span>DONE<b>${doneAll}</b></span></span></div>
+
+    const tabsHTML = `<div class="bd-tabs">
+      <button class="bd-tab ${activeBoardTab === 'kanban' ? 'on' : ''}" data-tab="kanban">KANBAN LANES</button>
+      <button class="bd-tab ${activeBoardTab === 'blackboard' ? 'on' : ''}" data-tab="blackboard">HIVE BLACKBOARD</button>
+      <button class="bd-tab ${activeBoardTab === 'messages' ? 'on' : ''}" data-tab="messages">INTER-AGENT LOG (${cachedHiveMessages.length})</button>
+    </div>`;
+
+    const headHTML = `<div class="bd-head">
+      <div style="display:flex;align-items:center;flex-wrap:wrap;gap:8px;">
+        <span class="b-name"><span class="bd-title">J AI ENTERPRISES</span>Command Center</span>
+        ${tabsHTML}
+      </div>
+      <div style="display:flex;align-items:center;gap:16px;">
+        <span class="bd-stats"><span>SCHEDULED<b>${routines.length}</b></span><span>IN PROGRESS<b>${tot('doing')}</b></span><span>BACKLOG<b>${tot('next')}</b></span><span>WAITING<b>${tot('waiting')}</b></span><span>DONE<b>${doneAll}</b></span></span>
+        <button class="bd-close" title="close">✕</button>
+      </div>
+    </div>`;
+
+    if (activeBoardTab === 'blackboard') {
+      const content = cachedBoardText || `# ◈ J AI ENTERPRISES — LDOC STUDIO SHARED BLACKBOARD\n\nLoading shared company blackboard...`;
+      return `${headHTML}
+      <div class="bd-bb-view">
+        <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--hairline);padding-bottom:8px;">
+          <span style="font-size:10.5px;letter-spacing:.12em;font-weight:600;color:var(--grey);">SHARED STIGMERGY BLACKBOARD (board.md) · ALL 35 AGENTS SYNCHRONIZED</span>
+          <button id="btnToggleEditBoard" style="background:none;border:1px solid var(--hairline);border-radius:99px;padding:4px 10px;font-size:10px;font-weight:600;cursor:pointer;">${isEditingBoard ? 'PREVIEW' : 'EDIT BLACKBOARD'}</button>
+        </div>
+        ${isEditingBoard
+          ? `<textarea id="boardEditor" class="bd-bb-editor">${esc(content)}</textarea>
+             <div style="display:flex;justify-content:flex-end;gap:8px;"><button id="btnSaveBoard" style="background:#4285F4;color:#fff;border:0;border-radius:99px;padding:6px 14px;font-size:11px;font-weight:600;cursor:pointer;">SAVE CHANGES</button></div>`
+          : `<div class="bd-bb-pre">${esc(content)}</div>`
+        }
+      </div>`;
+    }
+
+    if (activeBoardTab === 'messages') {
+      const msgs = cachedHiveMessages.length ? cachedHiveMessages : [
+        {
+          from: 'system',
+          to: 'all',
+          act: 'inform',
+          subject: 'HIVE Protocol Initialized',
+          body: 'Shared blackboard and inter-agent speech acts active. 35 agents connected with hop-limit circuit breaker.',
+          hops: 1,
+          created_at: new Date().toISOString()
+        }
+      ];
+      return `${headHTML}
+      <div class="bd-msg-list">
+        <div style="font-size:10px;letter-spacing:.12em;font-weight:600;color:var(--grey);margin-bottom:4px;">INTER-AGENT SPEECH ACT FEED (FIPA-LITE · REQUEST / INFORM / PROPOSE / DONE)</div>
+        ${msgs.map(m => `
+          <div class="bd-msg-card">
+            <div class="bd-msg-hdr">
+              <span class="bd-act-badge bd-act-${m.act}">${m.act}</span>
+              <b>${m.from?.toUpperCase()}</b> ➔ <b>${m.to?.toUpperCase()}</b>
+              <span style="color:var(--grey);margin-left:auto;">${timeStr(new Date(m.created_at).getTime())} · Hop ${m.hops}/3</span>
+              ${m.needs_human ? '<span style="background:#FCE8E6;color:#C5221F;padding:1px 5px;border-radius:99px;font-weight:700;font-size:8px;">HITL ESCALATION</span>' : ''}
+            </div>
+            <div style="font-size:11px;font-weight:600;color:var(--ink);">${esc(m.subject)}</div>
+            <div class="bd-msg-body">${esc(m.body)}</div>
+          </div>
+        `).join('')}
+      </div>`;
+    }
+
+    // Default: Kanban Board
+    return `${headHTML}
       <div class="bd-lanes"><div class="lh"></div>${COLS.map(([, lab]) => `<div class="lh">${lab}</div>`).join('')}
       ${DEPT_KEYS.map(k => {
         const d = DEPTS[k], n = AGENTS.filter(a => a.dept === k).length;
@@ -764,17 +852,62 @@ export function initTasks(ctx) {
           }).join('');
       }).join('')}</div>`;
   }
+
   function renderBoard() {
     if (!board.open) return;
     el.innerHTML = companyHTML();
+    const closeBtn = el.querySelector('.bd-close');
+    if (closeBtn) closeBtn.addEventListener('click', close);
+
+    el.querySelectorAll('.bd-tab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        activeBoardTab = btn.dataset.tab;
+        isEditingBoard = false;
+        if (activeBoardTab === 'blackboard') fetchBoardContent().then(() => renderBoard());
+        else if (activeBoardTab === 'messages') fetchHiveMessages().then(() => renderBoard());
+        else renderBoard();
+      });
+    });
+
+    const btnToggleEdit = el.querySelector('#btnToggleEditBoard');
+    if (btnToggleEdit) {
+      btnToggleEdit.addEventListener('click', () => {
+        isEditingBoard = !isEditingBoard;
+        renderBoard();
+      });
+    }
+
+    const btnSaveBoard = el.querySelector('#btnSaveBoard');
+    if (btnSaveBoard) {
+      btnSaveBoard.addEventListener('click', async () => {
+        const textarea = el.querySelector('#boardEditor');
+        if (textarea) {
+          const newText = textarea.value;
+          cachedBoardText = newText;
+          try {
+            await fetch(API + '/board', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ content: newText })
+            });
+          } catch {}
+          isEditingBoard = false;
+          renderBoard();
+        }
+      });
+    }
+
     el.querySelectorAll('.tk.waiting').forEach(n => n.addEventListener('click', () => { close(); zoomToApproval(n.dataset.dept); }));
     el.querySelectorAll('.tk.sched').forEach(n => n.addEventListener('click', () => { close(); filter = 'sched'; openFor(n.dataset.dept); render(true); }));
   }
+
   function open() {
     board.open = true;
     el.className = 'company';
+    fetchBoardContent();
+    fetchHiveMessages();
     renderBoard();
-    requestAnimationFrame(() => requestAnimationFrame(() => { if (!board.open) return; el.classList.add('on'); dim.classList.add('on'); })); // a close before this frame must win, or the board sits open with nothing to close it
+    requestAnimationFrame(() => requestAnimationFrame(() => { if (!board.open) return; el.classList.add('on'); dim.classList.add('on'); }));
   }
   function close() { if (!board.open) return; board.open = false; el.classList.remove('on'); dim.classList.remove('on'); }
   function toggle() { board.open ? close() : open(); }
