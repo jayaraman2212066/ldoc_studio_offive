@@ -40,6 +40,7 @@ import * as learn from './learn.mjs';
 import * as onboard from './onboard.mjs';
 import * as routines from './routines.mjs';
 import * as usage from './usage.mjs';
+import { ProviderManager } from './providers.mjs';
 import { normModel, modelFor, modelArgs, modelId, modelName, MODEL_KEYS, DEFAULT_MODEL, normEffort, effortFor, effortName, EFFORT_KEYS } from './src/models.js';
 import { parseWhen, describe, valid as validWhen, untilText } from './src/when.js';
 
@@ -71,12 +72,20 @@ const refreshSkills = () => { reloadRoster(); const s = loadSkills(BRAIN, AGENTS
 const leadOf = dept => AGENTS.find(a => a.department === dept && a.lead) || AGENTS.find(a => a.department === dept);
 const setupMap = () => Object.fromEntries(DEPT_KEYS.map(k => [k, onboard.isSetUp(AGENTS, skills, k)]));
 
-let backend = 'claude-cli', sdk = null;
+const providerManager = new ProviderManager(cfg);
+const detectedProvider = await providerManager.detect();
+let backend = 'gemini', sdk = null;
 if (process.env.ANTHROPIC_API_KEY) {
   try {
     const { default: Anthropic } = await import('@anthropic-ai/sdk');
     sdk = new Anthropic(); backend = 'anthropic-sdk';
-  } catch (e) { console.warn('SDK not installed (npm install @anthropic-ai/sdk) — using the Claude CLI:', e.message.split('\n')[0]); }
+  } catch (e) { console.warn('SDK not installed — using Gemini / local engine'); }
+} else if (process.env.GEMINI_API_KEY || cfg.provider === 'gemini') {
+  backend = 'gemini';
+} else if (detectedProvider.provider === 'ollama' && !detectedProvider.offline) {
+  backend = 'ollama';
+} else {
+  backend = detectedProvider.provider || 'gemini';
 }
 
 /* ---------- storage ---------- */
@@ -101,6 +110,11 @@ const slug = t => String(t).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^
 // light up). On the CLI the agent gets --allowedTools = every connected server the config allows
 // (+ web); file tools, Bash and sub-agents stay off — the office is not a coding session.
 async function askX(system, user, { maxTokens = 4000, tools = true, timeout = RUN_TIMEOUT, model = cfg.model, effort = null } = {}) { // model: sonnet · opus · fable · effort: low…max or null = the model's own (src/models.js)
+  if (backend === 'gemini' || backend === 'ollama' || backend === 'local') {
+    const res = await providerManager.generate(system, user, { maxTokens, model, timeout });
+    bumpUsage(res.usage);
+    return { text: res.text, tools: res.tools || [], usage: res.usage, modelId: res.modelId };
+  }
   if (sdk) {
     const res = await sdk.messages.create({ model: modelId(model), max_tokens: maxTokens, system, messages: [{ role: 'user', content: user }] });
     if (res.stop_reason === 'refusal') throw new Error('Claude declined this request');
@@ -115,7 +129,15 @@ async function askX(system, user, { maxTokens = 4000, tools = true, timeout = RU
   args.push(...modelArgs(model, effort));
   const env = { ...process.env }; delete env.CLAUDECODE; // the CLI refuses to nest inside another Claude Code session
   return new Promise((resolve, reject) => {
-    const p = spawn('claude', args, { cwd: CLI_CWD, env, stdio: ['ignore', 'pipe', 'pipe'] });
+    let p;
+    try {
+      p = spawn('claude', args, { cwd: CLI_CWD, env, stdio: ['ignore', 'pipe', 'pipe'] });
+    } catch (e) {
+      return providerManager.generate(system, user, { maxTokens, model, timeout }).then(res => {
+        bumpUsage(res.usage);
+        resolve({ text: res.text, tools: res.tools || [], usage: res.usage, modelId: res.modelId });
+      }).catch(reject);
+    }
     let out = '', err = '', text = '', used = [], gotResult = false, usageOut = null, modelUsed = null;
     const timer = setTimeout(() => { p.kill('SIGKILL'); reject(new Error(`Claude took longer than ${timeout / 1000} s`)); }, timeout);
     const feed = line => {
@@ -127,10 +149,21 @@ async function askX(system, user, { maxTokens = 4000, tools = true, timeout = RU
     };
     p.stdout.on('data', d => { out += d; let i; while ((i = out.indexOf('\n')) >= 0) { feed(out.slice(0, i)); out = out.slice(i + 1); } });
     p.stderr.on('data', d => { err += d; });
-    p.on('error', e => { clearTimeout(timer); reject(new Error(e.code === 'ENOENT' ? 'Claude Code is not installed (claude not found on PATH)' : e.message)); });
+    p.on('error', e => {
+      clearTimeout(timer);
+      providerManager.generate(system, user, { maxTokens, model, timeout }).then(res => {
+        bumpUsage(res.usage);
+        resolve({ text: res.text, tools: res.tools || [], usage: res.usage, modelId: res.modelId });
+      }).catch(reject);
+    });
     p.on('close', code => {
       clearTimeout(timer); feed(out);
-      if (code !== 0 && !gotResult) return reject(new Error(`claude exited ${code}${err ? ': ' + err.trim().slice(0, 300) : ''}`));
+      if (code !== 0 && !gotResult) {
+        return providerManager.generate(system, user, { maxTokens, model, timeout }).then(res => {
+          bumpUsage(res.usage);
+          resolve({ text: res.text, tools: res.tools || [], usage: res.usage, modelId: res.modelId });
+        }).catch(() => reject(new Error(`claude exited ${code}${err ? ': ' + err.trim().slice(0, 300) : ''}`)));
+      }
       if (!gotResult) { try { text = String(JSON.parse(out).result || '').trim(); } catch { text = out.trim(); } }
       bumpUsage(usageOut);
       resolve({ text, tools: used, usage: usageOut, modelId: modelUsed });

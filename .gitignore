@@ -4,6 +4,11 @@ dist/*
 data/
 office.config.local.json
 office.agents.local.json
-brain/Agents Office/
+brain/Agents Office/*
+!brain/Agents Office/agents.json
 .DS_Store
 *.backup-*
+.env
+.env.*
+*.local
+.vercel/

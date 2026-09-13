@@ -35,6 +35,9 @@ export function parseUsage(j) {
 }
 
 export async function fetchUsage() {
+  if (process.env.GEMINI_API_KEY || !process.env.ANTHROPIC_API_KEY) {
+    return { ok: false, reason: '100% free local & Gemini mode active' };
+  }
   const token = readToken();
   if (!token) return { ok: false, reason: 'no Claude Code login found on this machine' };
   try {

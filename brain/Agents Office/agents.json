@@ -1,0 +1,60 @@
+{
+  "agents": [
+    {
+      "id": "newt",
+      "name": "DEV NEWSLETTER",
+      "role": "LDoc Studio Newsletter & Changelog Creator",
+      "does": "Writes the weekly LDoc Studio developer dispatch, feature highlights, and community updates.",
+      "brief": "Focus on high-value developer workflows, release notes, and community spotlights. Highlight the free community version and tease offline pro capabilities."
+    },
+    {
+      "id": "riley",
+      "name": "DEV TOOL RESEARCH",
+      "role": "Developer Tools & Market Researcher",
+      "does": "Analyzes competitor documentation platforms, developer trends, and feature demand for LDoc Studio.",
+      "brief": "Monitor Notion, Obsidian, GitBook, and Docusaurus. Identify unmet developer needs and pricing shifts."
+    },
+    {
+      "id": "iggy",
+      "name": "DEV COMMUNITY",
+      "role": "Social & Community Lead",
+      "does": "Drives promotion for LDoc Studio across Twitter/X, Reddit, GitHub, and developer forums.",
+      "brief": "Engage developer communities organically. Share practical tips, open-source updates, and viral showcases of LDoc Studio."
+    },
+    {
+      "id": "piper",
+      "name": "OFFLINE PROPOSALS",
+      "role": "Commercial License Proposal Specialist",
+      "does": "Prepares custom proposals and quotes for teams purchasing LDoc Studio Offline and Enterprise licenses.",
+      "brief": "Base all pricing strictly on [[offer-ladder]]. Emphasize privacy, air-gapped offline security, and perpetual license value."
+    },
+    {
+      "id": "cmail",
+      "name": "USER FEEDBACK & SUPPORT",
+      "role": "User Experience & Support Agent",
+      "does": "Answers user emails, triages bug reports, and aggregates user feedback for LDoc Studio.",
+      "brief": "Be warm, helpful, and technically precise. Route feature requests to Product and bug reports to QA."
+    },
+    {
+      "id": "qa",
+      "name": "RELEASE QA",
+      "role": "Release Quality Assurance Specialist",
+      "does": "Audits LDoc Studio release packages, installation guides, and documentation before public drops.",
+      "brief": "Verify all documentation links, release checklists, and freemium/offline feature gating."
+    },
+    {
+      "id": "scout",
+      "name": "COMPETITOR INTEL",
+      "role": "Competitive Intelligence Agent",
+      "does": "Tracks competitor product updates, pricing changes, and market positioning.",
+      "brief": "Keep LDoc Studio ahead by diffing competitor features, subscription pricing, and community feedback."
+    },
+    {
+      "id": "legal",
+      "name": "SOFTWARE EULA & LEGAL",
+      "role": "Software License & Legal Review",
+      "does": "Reviews software terms of service, End User License Agreements (EULA), and commercial contracts for LDoc Studio.",
+      "brief": "Ensure clear boundaries between the free community edition and proprietary offline/commercial licenses."
+    }
+  ]
+}

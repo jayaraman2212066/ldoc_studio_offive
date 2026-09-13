@@ -1,0 +1,17 @@
+{
+  "version": 2,
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/index.js"
+    },
+    {
+      "source": "/command-centre",
+      "destination": "/command-centre-v2.html"
+    },
+    {
+      "source": "/dark",
+      "destination": "/index.html"
+    }
+  ]
+}
