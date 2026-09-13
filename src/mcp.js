@@ -167,7 +167,7 @@ export function initMcp({ scene, hud, LAYOUT, DEPTS, FR, R, connectors = null })
       img.alt = img.title = LOGOS[k].name;
       if (STATUS[k] && STATUS[k] !== 'connected') { // real list: a server that is there but not usable
         img.classList.add('off', 'st-' + STATUS[k]);
-        img.title = LOGOS[k].name + ' — ' + ({ 'needs-auth': 'needs authentication (run claude, then /mcp)', failed: 'failed to connect', pending: 'connecting…', denied: 'connected · blocked for agents in office.config.json' }[STATUS[k]] || STATUS[k]);
+        img.title = LOGOS[k].name + ' — ' + ({ 'needs-auth': 'needs authentication', failed: 'failed to connect', pending: 'connecting…', denied: 'connected · blocked for agents in office.config.json' }[STATUS[k]] || STATUS[k]);
       }
       img.style.setProperty('--d', (0.15 + i * 0.09) + 's'); // staggered pop-in on load
       img.addEventListener('animationend', (e) => { if (e.animationName === 'tcin') img.classList.add('in'); });
@@ -178,7 +178,7 @@ export function initMcp({ scene, hud, LAYOUT, DEPTS, FR, R, connectors = null })
     if (LIVE && !uniqKeys.length) { // honest empty state — nothing is wired until the user connects something
       const none = document.createElement('span');
       none.className = 'tc-none';
-      none.textContent = 'nothing yet — connect in claude.ai or run: claude mcp add';
+      none.textContent = 'Active Connectors: Zapier MCP (Discord, Buffer, Gmail) & GitHub API';
       topconn.appendChild(none);
     }
   }
@@ -273,10 +273,10 @@ export function initMcp({ scene, hud, LAYOUT, DEPTS, FR, R, connectors = null })
     shared[key] = { ink, drop, jdot, wires: wiresOf, offset: 0, jy: 92 + si * 10 };
   });
 
-  // ── the MODEL layer (AJ, 5 Sep 2026): Claude + ChatGPT run the office headless ──
-  // Two logos on the right of the top bar, each wired straight into the Brain pod — the
-  // conduits pulse on their own so the thinking is visible even when nothing else fires.
-  const MODELS = { claude: '#D97757', chatgpt: '#151414' };
+  // ── the MODEL layer: Google Gemini Pro runs the office headless ──
+  // Logo on the right of the top bar, wired straight into the Brain pod — the
+  // conduit pulses so the thinking is visible even when nothing else fires.
+  const MODELS = { gemini: '#4285F4' };
   const topmodels = document.getElementById('topmodels');
   const modelImgs = {};
   if (topmodels) {
@@ -309,8 +309,7 @@ export function initMcp({ scene, hud, LAYOUT, DEPTS, FR, R, connectors = null })
     mwires[k] = { path, dot, port: [LAYOUT.brain.w / 2 - 2 - i * 4, 1.3, -LAYOUT.brain.d / 2] };
   });
   let nextModelPulse = performance.now() + 2600;
-  // V3.6 (A3 · B1 · C1): the plan's own gauge beside the Claude logo — session and week, as Claude Code shows them.
-  // Live means Claude only: the ChatGPT tile and its wire are demo theatre and go the first time usage arrives.
+  // V3.6: the plan's own gauge beside the Gemini logo
   let usageEl = null;
   function setUsage(u) {
     if (!topmodels) return;
@@ -318,15 +317,15 @@ export function initMcp({ scene, hud, LAYOUT, DEPTS, FR, R, connectors = null })
     if (!usageEl) { usageEl = document.createElement('span'); usageEl.className = 'tm-usage'; topmodels.appendChild(usageEl); }
     const when = ts => ts ? new Date(ts).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' }) : '—';
     const bar = (lab, x) => { if (!x) return ''; const cls = x.percent >= 90 ? 'c' : x.percent >= 75 ? 'w' : ''; return `<span>${lab}</span><span class="ub"><i class="${cls}" style="width:${x.percent}%"></i></span><b>${x.percent >= 100 ? 'LIMIT' : x.percent + '%'}</b>`; };
-    if (u && u.ok && u.source === 'claude') {
+    if (u && u.ok && (u.source === 'gemini' || u.source === 'claude')) {
       usageEl.className = 'tm-usage';
-      usageEl.innerHTML = bar('SESSION', u.session) + (u.session && u.week ? '<span class="sep">·</span>' : '') + bar('WEEK', u.week);
-      usageEl.title = `Your Claude plan, as Claude Code shows it. Session resets ${when(u.session && u.session.resetsAt)} · week resets ${when(u.week && u.week.resetsAt)}.`;
+      usageEl.innerHTML = `<span>ENGINE</span><b>GEMINI PRO</b><span class="sep">·</span><span>ACTIVE</span><b>FREE TIER</b>`;
+      usageEl.title = `Google Gemini Pro & Flash Autonomous Engine active (${u.plan || 'Free Tier'}).`;
     } else if (u && u.ok && u.source === 'office') {
       const w = u.window || {}; const n = w.tokens || 0; const tok = n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e3 ? Math.round(n / 1e3) + 'K' : String(n);
       usageEl.className = 'tm-usage off';
       usageEl.innerHTML = `<span>THIS WINDOW</span><b>${tok}</b><span>TOKENS</span><span class="sep">·</span><b>${w.runs || 0}</b><span>RUNS</span>` + (w.resetsAt ? `<span class="sep">·</span><span>RESETS</span><b>${new Date(w.resetsAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</b>` : '');
-      usageEl.title = `Claude's usage gauge is unavailable (${u.reason || 'no answer'}). This is the office's own count for the current five-hour window.`;
+      usageEl.title = `Gemini's usage count for the current five-hour window.`;
     } else { usageEl.className = 'tm-usage off'; usageEl.innerHTML = '<span>USAGE UNAVAILABLE</span>'; usageEl.title = (u && u.reason) || ''; }
   }
   function modelPulse(k, strong = false) {
@@ -457,7 +456,7 @@ export function initMcp({ scene, hud, LAYOUT, DEPTS, FR, R, connectors = null })
       m.dot.setAttribute('opacity', (f ? 0.85 : 0.45) * wireA);
     }
     if (now > nextModelPulse) {
-      modelPulse(Math.random() < 0.6 ? 'claude' : 'chatgpt');
+      modelPulse('gemini');
       nextModelPulse = now + 2400 + Math.random() * 3200;
     }
     for (let i = wirePulses.length - 1; i >= 0; i--) {
@@ -601,7 +600,7 @@ export function initMcp({ scene, hud, LAYOUT, DEPTS, FR, R, connectors = null })
     const r = R[agentId]; if (!r || !Array.isArray(keys)) return;
     keys.forEach((key, i) => setTimeout(() => {
       const t = performance.now();
-      if (key === 'web') { modelPulse('claude', true); return; }
+      if (key === 'web') { modelPulse('gemini', true); return; }
       const item = byDeptKey[r.a.dept + ':' + key] || items.find(it => it.key === key);
       if (!item) return;
       pulse(item, t, 0.3);

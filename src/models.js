@@ -7,9 +7,9 @@
 // names them; AUTO (empty) = the model's own default (Opus runs at high). Same four places, same
 // precedence as the model, then the model's own.
 export const MODELS = {
-  sonnet: { key: 'sonnet', name: 'Sonnet', flag: 'sonnet', id: 'claude-sonnet-5' },
-  opus:   { key: 'opus',   name: 'Opus',   flag: 'opus',   id: 'claude-opus-5', effort: 'high' },
-  fable:  { key: 'fable',  name: 'Fable',  flag: 'fable',  id: 'claude-fable-5-1' },
+  sonnet: { key: 'sonnet', name: 'Gemini Flash', flag: 'gemini-flash-latest', id: 'gemini-flash-latest' },
+  opus:   { key: 'opus',   name: 'Gemini Pro',   flag: 'gemini-pro',   id: 'gemini-2.5-pro', effort: 'high' },
+  fable:  { key: 'fable',  name: 'Gemini 3.6',  flag: 'gemini-3.6-flash',  id: 'gemini-3.6-flash' },
 };
 export const MODEL_KEYS = ['sonnet', 'opus', 'fable'];
 export const DEFAULT_MODEL = 'sonnet';
@@ -37,10 +37,13 @@ export function effortFor({ task, routine, agent, office, model } = {}) {
   return { effort: m.effort || null, from: 'model' };
 }
 
-/** "opus" · "Opus" · "claude-opus-5" → "opus"; anything else → null. */
+/** "gemini-pro" · "pro" · "Gemini Flash" → model key; anything else → null. */
 export function normModel(s) {
   const t = String(s || '').toLowerCase().trim();
   if (!t) return null;
+  if (t.includes('pro') || t.includes('opus')) return 'opus';
+  if (t.includes('3.6') || t.includes('fable')) return 'fable';
+  if (t.includes('flash') || t.includes('sonnet') || t.includes('gemini')) return 'sonnet';
   for (const k of MODEL_KEYS) if (t === k || t.includes(k)) return k;
   return null;
 }

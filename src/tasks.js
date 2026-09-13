@@ -351,7 +351,7 @@ export function initTasks(ctx) {
       const { agent: ra } = route(dept, rt.text || text);
       const need = rt.needsDay ? 'which day? say "every Monday …"' : rt.needsTime ? 'what time? add "at 8am"' : null;
       P_.hint.innerHTML = `<span class="tp-av" style="border-color:${DEPTS[ra.dept].chip};background:${DEPTS[ra.dept].chip}55">⏱</span>Routine · <b>${esc(describe(rt.when) || 'every week')}</b>` +
-        (need ? ` · <span class="tp-amber">${need}</span>` : live ? ' · Claude names the agent when you press Add' : ` · goes to <b>${ra.name}</b>`) + (rt.guessed ? ` · "${esc(rt.guessWord)}" taken as ${rt.when.at}` : '');
+        (need ? ` · <span class="tp-amber">${need}</span>` : live ? ' · Gemini assigns the agent when you press Add' : ` · goes to <b>${ra.name}</b>`) + (rt.guessed ? ` · "${esc(rt.guessWord)}" taken as ${rt.when.at}` : '');
       P_.hint.innerHTML += pickBit('routine');
       P_.hint.className = 'tp-hint on'; return;
     }
@@ -359,7 +359,7 @@ export function initTasks(ctx) {
     const busy = agentTasks(a.id, 'doing').length > 0 || R[a.id].state === 'stuck';
     const chip = DEPTS[a.dept].chip;
     P_.hint.innerHTML = `<span class="tp-av" style="border-color:${chip};background:${chip}55">${a.name[0]}</span>` +
-      (live ? `Probably <b>${a.name}</b> · Claude confirms when you press Add`
+      (live ? `Probably <b>${a.name}</b> · Gemini confirms when you press Add`
             : `Goes to <b>${a.name}</b> · ${busy ? 'starts after their current job' : 'starts straight away'}${matched ? '' : ' · say more and I’ll pick a specialist'}`) +
       pickBit('task');
     P_.hint.className = 'tp-hint on';
@@ -390,7 +390,7 @@ export function initTasks(ctx) {
     if (live) {
       const text = title, k = dept;
       P_.input.value = ''; P_.input.disabled = true; P_.add.disabled = true;
-      say(`Routing through Claude — ${DEPTS[k].name.toLowerCase()} is reading it…`, 'busy');
+      say(`Routing with Gemini — ${DEPTS[k].name.toLowerCase()} is analyzing…`, 'busy');
       try {
         const mdl = chosenModel();
         const r = await fetch(API + '/tasks', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ dept: k, text, model: mdl || undefined, effort: effortSend() }) });
@@ -402,7 +402,7 @@ export function initTasks(ctx) {
         say(`Added — <b>${agentOf(t.agent).name}</b> has it${st.why ? ' · ' + esc(st.why) : ''}`);
         setTimeout(() => { if (!P_.input.value) P_.hint.classList.remove('on'); }, 7000);
       } catch (e) {
-        say(`Claude couldn't take it (${esc(e.message)}). Kept it on the board.`, 'err');
+        say(`Agent couldn't take it (${esc(e.message)}). Kept it on the board.`, 'err');
         const { agent: a } = route(k, text); addTask(a.id, text, 'you');
       }
       P_.input.disabled = false; P_.add.disabled = false; P_.input.blur(); // hand the keys back to the office
@@ -426,7 +426,7 @@ export function initTasks(ctx) {
     if (!text) { say('What should happen? The sentence has a time but no task.', 'err'); return; }
     if (live) {
       P_.input.disabled = true; P_.add.disabled = true;
-      say('Setting the routine — Claude is naming the agent…', 'busy');
+      say('Setting the routine — Gemini is assigning the agent…', 'busy');
       try {
         const r = await fetch(API + '/routines', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ dept: k, text, when: rt.when, needsOk: rt.picker ? P_.okc.checked : undefined, model: chosenModel() || undefined, effort: effortSend() }) });
         const j = await r.json(); if (!r.ok) throw new Error(j.error || r.statusText);
@@ -435,7 +435,7 @@ export function initTasks(ctx) {
         say(`Routine set — <b>${a.name}</b> · ${esc(j.routine.desc)} · next ${esc(untilText(j.routine.nextAt))}${j.routine.needsOk ? ' · waits for your OK' : ' · read-only, no OK needed'}${j.guessed ? ` · "${esc(j.guessed)}" taken as ${j.routine.when.at}` : ''}`);
         P_.input.value = ''; resetModel(); spawnEmote(R[a.id], '⏱'); feedPush(R[a.id], '⏱', `New routine: ${j.routine.title} (${j.routine.desc})`);
         filter = 'sched'; render(true); poll();
-      } catch (e) { say(`Claude couldn't set it (${esc(e.message)}).`, 'err'); }
+      } catch (e) { say(`Could not set routine (${esc(e.message)}).`, 'err'); }
       P_.input.disabled = false; P_.add.disabled = false; P_.input.blur();
       return;
     }
@@ -584,7 +584,7 @@ export function initTasks(ctx) {
       if (!h.ok) return;
       live = true; setOfficeModel(h.model); setOfficeEffort(h.effort);
       const mode = panel.querySelector('.tp-mode');
-      if (mode) { mode.hidden = false; mode.textContent = 'LIVE · ' + (h.backend === 'anthropic-sdk' ? 'CLAUDE API' : 'CLAUDE'); mode.classList.add('live'); mode.title = `${h.name} · ${h.backend} · ${modelName(h.model)} by default · brain: ${h.brain}`; }
+      if (mode) { mode.hidden = false; mode.textContent = 'LIVE · ' + (h.backend === 'gemini' ? 'GEMINI PRO' : 'GEMINI'); mode.classList.add('live'); mode.title = `${h.name} · ${h.backend} · ${modelName(h.model)} by default · brain: ${h.brain}`; }
       if (brain) { try { brain.setGraph(await (await fetch(API + '/brain')).json()); } catch {} }
       const list = await (await fetch(API + '/tasks')).json();
       for (const st of list) {
@@ -631,7 +631,7 @@ export function initTasks(ctx) {
         const w = now - t.addedAt;
         return `${who} · ${w < 60000 ? 'just added' : 'waiting ' + span(w)} · ${src}${modelBit(t)}`;
       }
-      case 'doing': return `${who}${t.live ? (t.approved === undefined && t.draftAt ? ' · sending with Claude' : ' · working with Claude') : t.agent === 'vid' ? ' · rendering' : ''}${t.routine ? ' · routine' : ''}${modelBit(t)}`;
+      case 'doing': return `${who}${t.live ? (t.approved === undefined && t.draftAt ? ' · sending with Gemini' : ' · working with Gemini') : t.agent === 'vid' ? ' · rendering' : ''}${t.routine ? ' · routine' : ''}${modelBit(t)}`;
       case 'waiting': return `<span class="tp-amber">waiting ${span(now - t.changedAt)} for your tick</span> · ${who}${t.routine ? ' · routine draft' : ''}${modelBit(t)}`;
       case 'done': return `${who} · done ${timeStr(t.doneAt)}${t.approved ? (t.live ? ' · sent after your OK' : ' · approved') : ''}${t.late ? ' · <span class="tp-late">ran late</span>' : ''}${modelBit(t)}${t.live ? (t.error ? ' · <span class="tp-amber">failed</span>' : ' · <span class="tp-res">result ready →</span>') : ''}`;
     }
