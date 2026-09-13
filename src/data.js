@@ -127,7 +127,7 @@ export const WORKLINES = {
   emails: [
     '▸ drafting reply — client scope question',
     '▸ vendor thread: SLA revision summarised',
-    '▸ 14 internal emails triaged · 3 for AJ',
+    '▸ 14 internal emails triaged · 3 for Jayaraman',
     '▸ contractor invoice query answered',
   ],
   delivery: [

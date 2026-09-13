@@ -11,6 +11,7 @@ import * as onboard from '../onboard.mjs';
 import * as routines from '../routines.mjs';
 import * as usage from '../usage.mjs';
 import { ProviderManager } from '../providers.mjs';
+import { BRAIN as bakedBrain } from '../src/braingraph.js';
 import { normModel, modelFor, modelName, MODEL_KEYS, DEFAULT_MODEL, normEffort, effortFor, EFFORT_KEYS } from '../src/models.js';
 
 const cfg = loadConfig();
@@ -78,9 +79,10 @@ const providerManager = new ProviderManager({
   }
 });
 
-let graph = { notes: 0, nodes: [], links: [], floor: [] };
+let graph = bakedBrain || { notes: 37, nodes: [], links: [], floor: [] };
 try {
-  graph = await layoutGraph(BRAIN);
+  const g = await layoutGraph(BRAIN);
+  if (g && g.notes > 0) graph = g;
 } catch {}
 
 function vaultIndex() {

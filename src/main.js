@@ -616,7 +616,7 @@ function renderChat(id) {
         ${m.mock ? `<div class="a-mock">${m.mock}</div>` : ''}
         ${m.pending
           ? '<div class="a-btns"><button class="a-yes">APPROVE</button><button class="a-no">REJECT</button></div>'
-          : `<div class="a-done">${m.approved ? '✓ Approved' : '✗ Rejected'} by AJ</div>`}
+          : `<div class="a-done">${m.approved ? '✓ Approved' : '✗ Rejected'} by Jayaraman</div>`}
       </div>`;
     return '';
   }).join('');
