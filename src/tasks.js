@@ -214,8 +214,8 @@ export function initTasks(ctx) {
     return t;
   }
 
-  /* ---------- seed a believable morning ---------- */
-  {
+  /* ---------- seed a believable morning (Offline File Demo Only) ---------- */
+  if (!location.protocol.startsWith('http')) {
     const now = performance.now(), wall = Date.now();
     for (const a of AGENTS) {
       const r = R[a.id];
@@ -586,16 +586,25 @@ export function initTasks(ctx) {
       const mode = panel.querySelector('.tp-mode');
       if (mode) { mode.hidden = false; mode.textContent = 'LIVE · ' + (h.backend === 'gemini' ? 'GEMINI PRO' : 'GEMINI'); mode.classList.add('live'); mode.title = `${h.name} · ${h.backend} · ${modelName(h.model)} by default · brain: ${h.brain}`; }
       if (brain) { try { brain.setGraph(await (await fetch(API + '/brain')).json()); } catch {} }
+      // PURE TRUTH MODE:
+      // Clear out all simulated / mock demo tasks and reset done counts
+      tasks.length = 0;
+      for (const k of DEPT_KEYS) doneCount[k] = 0;
+
       const list = await (await fetch(API + '/tasks')).json();
       for (const st of list) {
         if (!agentOf(st.agent)) continue;
         if (st.state === 'done') {
-          const t = mk({ agent: st.agent, title: st.title, text: st.text, plan: st.plan, by: 'you', live: true, sid: st.id, state: 'done',
+          const t = mk({ agent: st.agent, title: st.title, text: st.text, plan: st.plan, by: st.by || 'you', live: true, sid: st.id, state: 'done',
             doneAt: st.doneAt, changedAt: st.doneAt, addedAt: st.addedAt, result: st.result, read: st.read, note: st.note, tools: st.tools || [], used: st.used || [], error: !!st.error, last: 'done' });
           deliver(t);
+          doneCount[t.dept] = (doneCount[t.dept] || 0) + 1;
         } else reconcile(st); // next, doing (the server may be running it), waiting for your OK — pick it up again
       }
       dirty = true;
+      syncBadges();
+      render(true);
+      renderBoard();
       if (onLive) onLive(h);
       await poll(); setInterval(poll, 6000); // V3.5: routines fire on the server's clock — the page keeps up
     } catch (e) { console.warn('office server not reachable — running offline:', e.message); }
@@ -995,8 +1004,10 @@ export function initTasks(ctx) {
       } else {
         const nx = agentTasks(id, 'next').sort((a, b) => a.addedAt - b.addedAt)[0];
         if (nx) { start(nx, now); r.nextBrainAt = null; }
-        else if (!r.nextBrainAt) r.nextBrainAt = now + 6000 + Math.random() * 16000;
-        else if (now > r.nextBrainAt) { r.nextBrainAt = null; brainSend(id); }
+        else if (!live) {
+          if (!r.nextBrainAt) r.nextBrainAt = now + 6000 + Math.random() * 16000;
+          else if (now > r.nextBrainAt) { r.nextBrainAt = null; brainSend(id); }
+        }
       }
     }
     if (now - lastBadge > 400) { syncBadges(); lastBadge = now; }
