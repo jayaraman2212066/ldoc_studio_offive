@@ -311,29 +311,28 @@ function tickDim(dt) {
     m.color.copy(m.userData.baseColor).lerp(m.userData.dimColor, focusDim);
 }
 
-/* ---------- department billboards — v1's exact agreed metric rows + amber approval row ---------- */
-const kv = id => KPIS.find(k => k.id === id).val;
+/* ---------- department billboards — Pure Truth Mode for LDoc Studio (.ldocx) ---------- */
+const kv = id => { const item = KPIS.find(k => k.id === id); return item ? item.val : 0; };
 let brainNotes = brain.state.notes;
 const BB_ROWS = {
   emails: [
-    ['EMAILS SENT', () => STATS.emailsSent],
-    ['REPLIES DRAFTED', () => STATS.drafts]],
+    ['INBOUND USER TICKETS', () => STATS.inboundFeedback || 0],
+    ['REPLIES DRAFTED', () => STATS.drafts || 0]],
   delivery: [
-    ['REPORTS SENT', () => STATS.reports],
-    ['ON TRACK', () => STATS.onTrack + ' / ' + STATS.projects]],
+    ['FORMAT SPEC', () => '.ldocx v1.0'],
+    ['CONTAINER STATUS', () => (STATS.reports > 0 ? 'DELIVERED' : 'READY')]],
   sales: [
-    ['CALLS S·A·J', () => STATS.spencer + '·' + STATS.arwin + '·' + STATS.jack],
-    ['NEW MANAGERS', () => STATS.managers],
-    ['AUTO-ONBOARDED', () => STATS.autoOnb]],
+    ['ENTERPRISE LEADS', () => STATS.enterpriseLeads || 0],
+    ['FLEET PIPELINE', () => '$' + (STATS.revenue || 0)]],
   marketing: [
-    ['NEW INSIGHTS', () => STATS.insMkt],
-    ['COST PER USER', () => '$' + Math.round(STATS.cpa)]],
+    ['ACTIVE CAMPAIGNS', () => STATS.activeCampaigns || 1],
+    ['COMMUNITY REACH', () => STATS.insMkt || 0]],
   ops: [
-    ['PROPOSALS MADE', () => Math.round(kv('proposals'))],
-    ['NEW INSIGHTS', () => STATS.insOps]],
+    ['SYSTEM HEALTH', () => '100% ONLINE'],
+    ['ACTIVE AGENTS', () => '35 READY']],
   fin: [
-    ['INVOICES ISSUED', () => Math.round(kv('invoices'))],
-    ['BILLS PAID', () => STATS.billsPaid]],
+    ['INVOICES ISSUED', () => STATS.invoices || 0],
+    ['CURRENT REVENUE', () => '$' + (STATS.revenue || 0)]],
   brain: [
     ['NOTES INDEXED', () => brainNotes.toLocaleString('en-NZ')]],
 };
@@ -1036,8 +1035,10 @@ function fireAgentEvent(seedTs) {
     if (modalOpen === r.a.id && modalTab === 'activity') renderActivity(r.a.id);
   }
 }
-// seed a believable history so Activity isn't empty at boot
-for (let i = 0; i < 170; i++) fireAgentEvent(Date.now() - ri(2, 200) * 60000);
+// seed a believable history so Activity isn't empty at boot (offline file demo only)
+if (!location.protocol.startsWith('http')) {
+  for (let i = 0; i < 170; i++) fireAgentEvent(Date.now() - ri(2, 200) * 60000);
+}
 for (const r of Object.values(R)) r.feed.sort((a, b) => b.ts - a.ts);
 
 /* ---------- minimal sim: work bobs, screen updates, brain meetings ---------- */
@@ -1161,7 +1162,10 @@ function tickSim(now, dt) {
       let mode;
       if (r.cheerUntil && now < r.cheerUntil) mode = 'cheer';
       else if (r.slumpUntil && now < r.slumpUntil) mode = 'slump';
-      else {
+      else if (location.protocol.startsWith('http')) {
+        const hasTask = tasks && tasks.isDoing && tasks.isDoing(r.a.id);
+        mode = hasTask ? 'type' : 'read';
+      } else {
         if (!r.modeUntil) { // first pick: desync everyone so the room never moves in lockstep
           pickWorkMode(r, now);
           r.modeUntil = now + 400 + Math.random() * 4000;
@@ -1216,8 +1220,8 @@ function tickSim(now, dt) {
       r.warn.scale.set(k, k, 1);
     }
   }
-  // ambient emoji work-bubbles pop over random desks every beat or two
-  if (now > nextEmoteAt) {
+  // ambient emoji work-bubbles pop over random desks in offline demo only (live reacts to real tasks)
+  if (now > nextEmoteAt && !location.protocol.startsWith('http')) {
     const ids = Object.keys(R).filter(id => R[id].state === 'working');
     if (ids.length) spawnEmote(R[ids[Math.floor(Math.random() * ids.length)]],
       rnd(['💬', '✉️', '📈', '💡', '✓', '📞', '🔍', '📎']));
@@ -1236,8 +1240,8 @@ function tickSim(now, dt) {
     }
     nextApprovalAt = now + 50000 + Math.random() * 40000;
   }
-  // agent events drive everything — feed, chat streams, billboard metrics (nothing is static)
-  if (now > nextMetricAt) {
+  // agent events drive offline demo; live HTTP mode uses pure truth server tasks
+  if (now > nextMetricAt && !location.protocol.startsWith('http')) {
     fireAgentEvent();
     nextMetricAt = now + 2600 + Math.random() * 3800;
   }
@@ -1351,6 +1355,7 @@ tasks = initTasks({
   onUsage: (u) => { if (mcp && mcp.setUsage) mcp.setUsage(u); }, // V3.6: the plan's gauge in the top bar
   getFocused: () => focused, getZoom: () => view.zoom, getFocusDim: () => focusDim,
   toScreen: (p) => toScreen(p), reframe,
+  updateBillboards, STATS, KPIS,
 });
 view.target.set(...overviewPos());
 addEventListener('resize', () => { if (!focused && !tween) view.target.set(...overviewPos()); });

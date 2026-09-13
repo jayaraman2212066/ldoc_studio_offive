@@ -120,7 +120,8 @@ const STATE_LABEL = { next: 'Backlog', doing: 'In progress', waiting: 'Waiting',
 
 export function initTasks(ctx) {
   const { R, deptRT, spawnEmote, chatPush, chatHist, feedPush, zoomToApproval, enterFocus, openAgent,
-          getFocused, esc, brainWrite, brain, onLive, onTools, requestApproval, setStuck, onUsage } = ctx;
+          getFocused, esc, brainWrite, brain, onLive, onTools, requestApproval, setStuck, onUsage,
+          updateBillboards, STATS, KPIS } = ctx;
   // LIVE mode (served by serve.mjs): the bar routes through Claude, agents produce real
   // deliverables saved as notes in the brain, and tasks persist. Opened as a file it stays demo.
   let live = false;
@@ -206,6 +207,11 @@ export function initTasks(ctx) {
     if (!t.error) chatPush(t.agent, { who: 'agent', text: `Done — "${t.title}"${t.routine ? ` (routine, ${t.when}${t.late ? ', ran late' : ''})` : ''} is ready above${t.read && t.read.length ? ` (I read ${t.read.slice(0, 3).join(', ')})` : ''}${t.used && t.used.length ? `. Used ${t.used.join(', ')}` : ''}. Say "revise: …" and I'll change it.` });
     feedPush(R[t.agent], '📄', `Delivered: ${t.title}`);
     if (brain && t.read) for (const n of t.read.slice(0, 2)) brain.readNote(t.agent, n);
+    if (R[t.agent]) {
+      spawnEmote(R[t.agent], t.error ? '⚠' : '📄');
+      if (!t.error) R[t.agent].cheerUntil = performance.now() + 4000;
+    }
+    if (updateBillboards) updateBillboards();
   }
   function brainSend(id) { // the Brain drops a fresh job into the agent's backlog
     const t = freshTask(id, { via: 'brain' });
@@ -525,6 +531,7 @@ export function initTasks(ctx) {
   function apply(t, st) {
     if (st.state === 'doing' && t.state !== 'doing') {
       t.state = 'doing'; t.startedAt = performance.now() - Math.max(0, Date.now() - (st.startedAt || Date.now())); t.progress = 0; t.pausedAt = null; t.running = true; t.ready = false; t.srv = true; t.changedAt = st.startedAt || Date.now(); touch(t, 'started');
+      if (R[t.agent]) { spawnEmote(R[t.agent], '⚡'); R[t.agent].workMode = 'type'; }
     } else if (st.state === 'waiting' && t.draftAt !== st.waitingAt) { // a new draft is waiting for the OK (the first, or a rework after REJECT)
       copyResult(t, st); t.state = 'waiting'; t.draftAt = st.waitingAt; t.ask = st.ask; t.changedAt = st.waitingAt || Date.now(); t.running = true; touch(t, 'waiting');
       askApproval(t);
@@ -601,6 +608,18 @@ export function initTasks(ctx) {
           doneCount[t.dept] = (doneCount[t.dept] || 0) + 1;
         } else reconcile(st); // next, doing (the server may be running it), waiting for your OK — pick it up again
       }
+      // Pure Truth Mode: Bind true server statistics to Pod Cards and Billboards
+      if (STATS) {
+        STATS.enterpriseLeads = list.filter(t => t.dept === 'sales' && (t.via === 'webhook' || t.state === 'done')).length;
+        STATS.inboundFeedback = list.filter(t => t.dept === 'emails' && (t.via === 'webhook' || t.state === 'done')).length;
+        STATS.activeCampaigns = list.filter(t => t.dept === 'marketing').length || 1;
+        STATS.reports = list.filter(t => t.dept === 'delivery' && t.state === 'done').length;
+        STATS.drafts = list.filter(t => t.dept === 'emails' && t.state === 'done').length;
+        STATS.insMkt = list.filter(t => t.dept === 'marketing' && t.state === 'done').length;
+        STATS.invoices = list.filter(t => t.dept === 'fin' && t.via === 'invoice').length;
+        STATS.revenue = 0;
+      }
+      if (updateBillboards) updateBillboards();
       dirty = true;
       syncBadges();
       render(true);
@@ -1020,5 +1039,6 @@ export function initTasks(ctx) {
 
   return { tick, toggle, open, close, openFor, isOpen, boardWidth, onFocusChange, onStuck, onResolve,
            handleChat, addTask, revise, rowHTML, setDept, tasks, panelWidth: () => panel.offsetWidth, isLive: () => live,
-           routines, addRoutine, rtAct, railFor, syncPills, refresh: poll, resolveLive, pendingReject, rejectLive, officeModel: () => officeModel, chosenModel, chosenEffort };
+           routines, addRoutine, rtAct, railFor, syncPills, refresh: poll, resolveLive, pendingReject, rejectLive, officeModel: () => officeModel, chosenModel, chosenEffort,
+           isDoing: id => agentTasks(id, 'doing').length > 0, agentTasks: (id, st) => agentTasks(id, st) };
 }
