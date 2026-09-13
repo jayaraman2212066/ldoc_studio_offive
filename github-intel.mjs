@@ -11,7 +11,7 @@ function getHeaders() {
   };
   const token = process.env.GITHUB_TOKEN || process.env.GH_PAT;
   if (token) {
-    headers['Authorization'] = `token ${token}`;
+    headers['Authorization'] = `Bearer ${token}`;
   }
   return headers;
 }
