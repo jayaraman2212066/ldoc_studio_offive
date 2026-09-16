@@ -145,36 +145,11 @@ function maybeFlyMessage(mockIds: string[]): void {
   window.dispatchEvent(new CustomEvent('cth:demo-handoff', { detail: { from, to, act } }));
 }
 
-let interval: number | null = null;
-
+// Synthetic simulation disabled: All agent actions are driven in real-time by real tasks and executions
 export function startMockLoop() {
-  if (interval !== null) return;
-  interval = window.setInterval(() => {
-    const { agents } = useStore.getState();
-    // Only step mock agents (no ptyId). Real agents are driven by the pty parser.
-    for (const a of agents) if (!a.ptyId) stepAgent(a);
-
-    const { agents: a2, updateAgent } = useStore.getState();
-    for (const a of a2) {
-      if (a.ptyId) continue;
-      if (a.status === 'thinking' && a.currentStation === 'desk' && Math.random() < 0.4) {
-        updateAgent(a.id, {
-          status: 'idle',
-          action: 'awaiting',
-          carrying: undefined,
-          recentAssistantText: 'Done with that one. What next?',
-          recentTextTs: Date.now()
-        });
-      }
-    }
-
-    maybeFlyMessage(a2.filter((a) => !a.ptyId).map((a) => a.id));
-  }, TICK_MS) as unknown as number;
+  // No-op — zero simulation
 }
 
 export function stopMockLoop() {
-  if (interval !== null) {
-    window.clearInterval(interval);
-    interval = null;
-  }
+  // No-op
 }

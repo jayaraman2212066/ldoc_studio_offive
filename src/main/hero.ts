@@ -8,12 +8,12 @@
  * change a folder.
  */
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
-import { dirname } from 'node:path';
+import { dirname, join } from 'node:path';
 import { getText } from './fetchText';
 import { parseHeroPayload, DEFAULT_HERO, type HeroPayload } from '../shared/heroPayload';
 
 const HERO_URL =
-  'https://raw.githubusercontent.com/chaitanyagiri/munder-difflin/main/docs/hero.json';
+  'https://raw.githubusercontent.com/universalcompany/universal-company/main/docs/hero.json';
 /** Plan copy and sponsors change on a human timescale. */
 const TTL_MS = 6 * 60 * 60 * 1000;
 
@@ -28,6 +28,19 @@ export async function loadHero(
 
   if (cached && !opts.force && Date.now() - cached.fetchedAt < TTL_MS) {
     return { hero: cached.hero, fetchedAt: cached.fetchedAt, stale: false };
+  }
+
+  const localCandidates = [
+    join(process.cwd(), 'docs', 'hero.json'),
+    join(__dirname, '../../docs/hero.json')
+  ];
+  for (const loc of localCandidates) {
+    try {
+      if (existsSync(loc)) {
+        const hero = parseHeroPayload(JSON.parse(readFileSync(loc, 'utf8')));
+        if (hero) return { hero, fetchedAt: Date.now(), stale: false };
+      }
+    } catch { /* continue */ }
   }
 
   try {

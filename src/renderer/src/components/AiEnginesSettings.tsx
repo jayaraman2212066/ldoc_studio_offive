@@ -136,32 +136,58 @@ export function AiEnginesSettings({ config }: { config: HarnessConfig }) {
         </div>
       </div>
 
-      {/* Backend API keys (write-only) */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <div style={headStyle}>{t('aiEngines.apiKeys')}</div>
-        {BACKENDS.map((b) => (
-          <div key={b.id} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <label style={labelStyle}>
-              {b.label} {hasKey[b.id] ? `· ${t('aiEngines.setCheck')}` : ''} <span style={{ opacity: 0.6 }}>({b.envVar})</span>
-            </label>
-            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-              <input
-                type="password"
-                autoComplete="off"
-                placeholder={hasKey[b.id] ? t('aiEngines.keyStoredPlaceholder') : t('aiEngines.keyPlaceholder', { label: b.label })}
-                value={draftKey[b.id] ?? ''}
-                onChange={(e) => setDraftKey((s) => ({ ...s, [b.id]: e.target.value }))}
-                style={inputStyle}
-              />
-              <PixelButton variant="secondary" size="sm" onClick={() => saveKey(b.id)}>{t('common.save')}</PixelButton>
-              {hasKey[b.id] && (
-                <PixelButton variant="secondary" size="sm" onClick={() => clearKey(b.id)}>{t('common.delete')}</PixelButton>
-              )}
-            </div>
-            {note[b.id] && <div style={{ fontSize: 11, color: 'var(--cth-ink-500)' }}>{note[b.id]}</div>}
+      {/* Universal Company Internal Agent Core (No External Credentials) */}
+      <div style={{
+        display: 'flex', flexDirection: 'column', gap: 10,
+        padding: 12,
+        background: 'var(--cth-paper-100)',
+        border: '1px solid var(--cth-ink-300)',
+        boxShadow: 'inset 0 0 0 1px var(--cth-ink-100)'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ fontFamily: 'var(--cth-font-display)', fontSize: 11, color: 'var(--cth-ink-900)' }}>
+            UNIVERSAL COMPANY INTERNAL ENGINE
           </div>
-        ))}
+          <span style={{
+            fontSize: 11,
+            padding: '2px 8px',
+            background: 'var(--cth-mint-light, #E8F5E9)',
+            color: 'var(--cth-ink-900)',
+            border: '1px solid var(--cth-mint, #4CAF50)',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6
+          }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#2E7D32' }} />
+            Internal Core Active
+          </span>
+        </div>
+
+        <div style={{ fontSize: 12, color: 'var(--cth-ink-700)', lineHeight: '18px' }}>
+          Universal Company operates completely self-contained. All agents run autonomously via the internal company process manager — <strong>zero third-party provider credentials or external cloud API keys required</strong>.
+        </div>
+
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+          gap: 8,
+          marginTop: 4
+        }}>
+          <div style={{ padding: '8px 10px', background: 'var(--cth-cream-100)', border: '1px solid var(--cth-ink-100)' }}>
+            <div style={{ fontSize: 10, fontFamily: 'var(--cth-font-display)', color: 'var(--cth-ink-500)' }}>EXECUTION MODE</div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--cth-ink-900)', marginTop: 2 }}>Local Subprocess & PTY</div>
+          </div>
+          <div style={{ padding: '8px 10px', background: 'var(--cth-cream-100)', border: '1px solid var(--cth-ink-100)' }}>
+            <div style={{ fontSize: 10, fontFamily: 'var(--cth-font-display)', color: 'var(--cth-ink-500)' }}>CREDENTIAL REQUIREMENT</div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: '#2E7D32', marginTop: 2 }}>None (Self-Contained)</div>
+          </div>
+          <div style={{ padding: '8px 10px', background: 'var(--cth-cream-100)', border: '1px solid var(--cth-ink-100)' }}>
+            <div style={{ fontSize: 10, fontFamily: 'var(--cth-font-display)', color: 'var(--cth-ink-500)' }}>DATA PRIVACY</div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--cth-ink-900)', marginTop: 2 }}>100% Local / Air-Gapped</div>
+          </div>
+        </div>
       </div>
+
 
       {/* Per-CLI local endpoint + default model */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>

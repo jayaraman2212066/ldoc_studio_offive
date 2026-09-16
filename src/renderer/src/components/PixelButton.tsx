@@ -6,6 +6,7 @@ type Size = 'sm' | 'md' | 'lg';
 export interface PixelButtonProps {
   variant?: Variant;
   size?: Size;
+  type?: 'button' | 'submit' | 'reset';
   children?: ReactNode;
   onClick?: () => void;
   disabled?: boolean;
@@ -20,6 +21,7 @@ const padBySize: Record<Size, string> = { sm: '0 8px', md: '0 12px', lg: '0 16px
 export function PixelButton({
   variant = 'primary',
   size = 'md',
+  type = 'button',
   children,
   onClick,
   disabled = false,
@@ -80,6 +82,7 @@ export function PixelButton({
 
   return (
     <button
+      type={type}
       title={title}
       onClick={disabled ? undefined : onClick}
       onMouseDown={() => setPressed(true)}

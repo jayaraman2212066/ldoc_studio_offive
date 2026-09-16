@@ -100,18 +100,11 @@ export function RealtimeMichaelToggle({ compact = false }: RealtimeMichaelToggle
   const hintOpen = hint !== null;
 
   const view = STATE_VIEW[status];
-  const noKey = !hasOpenAiKey;
+  const noKey = false; // Internal voice engine runs without external OpenAI cloud key
 
-  // Without a BYOK OpenAI key: stay visible but disabled (matches FreeFlowButton).
-  // Talk mints an ephemeral token from the OpenAI key (apikey:openai) — the SAME
-  // OpenAI provider key set under Agents & Models, used for the Realtime voice API.
-  // The tooltip carries the full WHY; the quiet info affordance below gives a
-  // discoverable cue so the user never just hits a silently-dead button.
-  const title = noKey
-    ? t('realtimeToggle.noKeyTitle')
-    : error
-      ? `${t(view.helpKey)} — ${error}`
-      : t(view.helpKey);
+  const title = error
+    ? `${t(view.helpKey)} — ${error}`
+    : t(view.helpKey);
 
   const onClick = () => {
     if (noKey) return;

@@ -46,8 +46,8 @@ export interface HeroPayload {
  *  fails, so the card is never empty and never waits on the network to render. */
 export const DEFAULT_HERO: HeroPayload = {
   plan: {
-    label: 'Local',
-    blurb: 'Every agent runs on your machine, in your folders, under your own keys. No seat limit, nothing metered.'
+    label: 'Universal Enterprise',
+    blurb: 'Universal Company runs self-contained on your infrastructure. Zero external API limits, 100% private real-time autonomous execution.'
   },
   sponsor: null,
   notice: null

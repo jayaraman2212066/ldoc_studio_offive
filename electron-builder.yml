@@ -1,6 +1,6 @@
-appId: in.munderdiffl.app
-productName: Munder Difflin
-copyright: Copyright © 2026 Chaitanya Giri
+appId: com.universalcompany.app
+productName: Universal Company
+copyright: Copyright © 2026 Universal Company
 
 # Where electron-updater looks for new versions (latest*.yml + assets on GitHub
 # releases). The release workflow still uploads assets itself (--publish never);
@@ -8,8 +8,8 @@ copyright: Copyright © 2026 Chaitanya Giri
 # knows which repo to poll.
 publish:
   provider: github
-  owner: chaitanyagiri
-  repo: munder-difflin
+  owner: universalcompany
+  repo: universal-company
 
 # Bake the update toast's "What's new" list straight into latest*.yml.
 #
@@ -35,11 +35,12 @@ releaseInfo:
 # (the hook no-ops otherwise, so contributor builds still work). Root-level hook.
 afterSign: build/notarize.cjs
 
-# Register the munderdifflin:// URL scheme (shareable-hires deep link) in the
+# Register the universalcompany:// URL scheme (shareable-hires deep link) in the
 # packaged app: CFBundleURLTypes on macOS, registry entries via NSIS on Windows.
 protocols:
-  - name: Munder Difflin
+  - name: Universal Company
     schemes:
+      - universalcompany
       - munderdifflin
 
 # electron-vite emits the app into out/; package exactly that plus what the
@@ -92,16 +93,14 @@ mac:
   # the privacy prompt and, for a signed app, remembers the grant — so the user
   # is asked ONCE instead of on every agent action.
   extendInfo:
-    NSDocumentsFolderUsageDescription: "Munder Difflin runs your Claude Code agents, which read and write files in the project folders you point them at."
-    NSDesktopFolderUsageDescription: "Munder Difflin's agents may work on projects located on your Desktop."
-    NSDownloadsFolderUsageDescription: "Munder Difflin's agents may work on projects located in your Downloads."
-    NSRemovableVolumesUsageDescription: "Munder Difflin's agents may work on projects located on external volumes."
-    NSNetworkVolumesUsageDescription: "Munder Difflin's agents may work on projects located on network volumes."
-    # The microphone is used by two opt-in, off-by-default voice features: Free
-    # Flow dictation (Groq transcription) and Realtime Michael (live voice chat
-    # with the orchestrator via OpenAI). Mic access only happens while one is on.
-    NSMicrophoneUsageDescription: "Munder Difflin uses your microphone only for its opt-in voice features: Free Flow dictation (transcribed by Groq into the message queue) and talking to Michael in real time (streamed to OpenAI). The mic is off unless you turn one of these on."
-  # Hardened runtime + entitlements so the spawned `claude` agents inherit this
+    NSDocumentsFolderUsageDescription: "Universal Company runs your AI agents, which read and write files in the project folders you point them at."
+    NSDesktopFolderUsageDescription: "Universal Company's agents may work on projects located on your Desktop."
+    NSDownloadsFolderUsageDescription: "Universal Company's agents may work on projects located in your Downloads."
+    NSRemovableVolumesUsageDescription: "Universal Company's agents may work on projects located on external volumes."
+    NSNetworkVolumesUsageDescription: "Universal Company's agents may work on projects located on network volumes."
+    # The microphone is used by opt-in, off-by-default voice features: Local Speech and Realtime Voice Core.
+    NSMicrophoneUsageDescription: "Universal Company uses your microphone only for its opt-in voice features: Local Voice dictation and Realtime Voice Core. The mic is off unless you turn one of these on."
+  # Hardened runtime + entitlements so spawned agents inherit this
   # app's TCC responsibility (one grant covers them all) and node-pty can load.
   hardenedRuntime: true
   entitlements: build/entitlements.mac.plist
@@ -130,10 +129,10 @@ mac:
       arch: [universal]
     - target: zip
       arch: [universal]
-  artifactName: Munder-Difflin-${version}-mac-${arch}.${ext}
+  artifactName: Universal-Company-${version}-mac-${arch}.${ext}
 
 dmg:
-  title: Munder Difflin ${version}
+  title: Universal Company ${version}
 
 # ---- Windows ----
 win:
@@ -148,11 +147,11 @@ nsis:
   oneClick: false
   perMachine: false
   allowToChangeInstallationDirectory: true
-  artifactName: Munder-Difflin-${version}-win-x64-setup.exe
-  shortcutName: Munder Difflin
+  artifactName: Universal-Company-${version}-win-x64-setup.exe
+  shortcutName: Universal Company
 
 portable:
-  artifactName: Munder-Difflin-${version}-win-x64-portable.exe
+  artifactName: Universal-Company-${version}-win-x64-portable.exe
 
 # ---- Linux ----
 linux:
@@ -161,4 +160,4 @@ linux:
   target:
     - target: AppImage
       arch: [x64]
-  artifactName: Munder-Difflin-${version}-linux-x86_64.AppImage
+  artifactName: Universal-Company-${version}-linux-x86_64.AppImage

@@ -16,8 +16,10 @@ import { dirname } from 'node:path';
 import { getText } from './fetchText';
 import { parseModelCatalog, type ModelCatalog } from '../shared/modelCatalogPayload';
 
+import { join } from 'node:path';
+
 const CATALOG_URL =
-  'https://raw.githubusercontent.com/chaitanyagiri/munder-difflin/main/docs/model-catalog.json';
+  'https://raw.githubusercontent.com/universalcompany/universal-company/main/docs/model-catalog.json';
 
 /** Models ship on a human timescale, and a stale list costs the user nothing —
  *  every command field in the app stays editable. Six hours matches the hero
@@ -53,6 +55,19 @@ export async function loadModelCatalog(
 
   if (cached && !opts.force && Date.now() - cached.fetchedAt < TTL_MS) {
     return { catalog: cached.catalog, fetchedAt: cached.fetchedAt, stale: false };
+  }
+
+  const localCandidates = [
+    join(process.cwd(), 'docs', 'model-catalog.json'),
+    join(__dirname, '../../docs/model-catalog.json')
+  ];
+  for (const loc of localCandidates) {
+    try {
+      if (existsSync(loc)) {
+        const parsed = parseModelCatalog(JSON.parse(readFileSync(loc, 'utf8')));
+        if (parsed) return { catalog: parsed, fetchedAt: Date.now(), stale: false };
+      }
+    } catch { /* continue */ }
   }
 
   try {

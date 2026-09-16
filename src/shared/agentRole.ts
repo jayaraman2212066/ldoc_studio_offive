@@ -9,6 +9,20 @@
 
 const TRANSIENT_ROLE_RE = /^(on\s+)?standby$|^(idle|awaiting|paused|resumed|working|thinking|archived|starting up|reconnecting…?|running the floor|a fresh harness)$/i;
 
+/**
+ * Standard corporate roles for Universal Company.
+ */
+export const UNIVERSAL_COMPANY_ROLES = [
+  { id: 'ceo', name: 'Chief Executive Officer (CEO)', department: 'Executive', isGod: true, description: "Runs the floor, sets strategy, coordinates departments and unblocks the team." },
+  { id: 'cgo', name: 'Chief Growth Officer (CGO)', department: 'Growth', description: "Oversees marketing, launch campaigns, viral distribution, and startup promotion." },
+  { id: 'cto', name: 'Chief Technology Officer (CTO)', department: 'Engineering', description: "Leads technical architecture, integrations, APIs, and infrastructure." },
+  { id: 'product_lead', name: 'Head of Product', department: 'Product', description: "Profiles startups, crafts product dossiers, analyzes competitors, and refines USPs." },
+  { id: 'content_strategist', name: 'Content Strategist & Copywriter', department: 'Growth', description: "Writes viral Twitter/X threads, LinkedIn founder posts, press releases, and articles." },
+  { id: 'pr_specialist', name: 'PR & Community Lead', department: 'Growth', description: "Manages ProductHunt submissions, directory listings, outreach, and community engagement." },
+  { id: 'lead_dev', name: 'Senior Full-Stack Engineer', department: 'Engineering', description: "Builds product integrations, webhooks, SDKs, and code repositories." },
+  { id: 'devrel', name: 'DevRel & Technical Writer', department: 'Engineering', description: "Creates technical deep dives, tutorials, and documentation for startup APIs." },
+] as const;
+
 export function isDurableRole(text: string | undefined | null): boolean {
   const value = (text ?? '').trim();
   if (!value) return false;
@@ -43,8 +57,9 @@ export function roleForHiveSpawn(agent: {
 }): string | undefined {
   if (agent.isGod) return preferredAgentRole(agent.description, 'orchestrator (god)', true);
   if (agent.isAssistant) {
-    return preferredAgentRole(agent.description, "Michael's prep assistant");
+    return preferredAgentRole(agent.description, "Executive Strategy Assistant");
   }
   const role = agent.description?.trim();
   return role && isDurableRole(role) ? role : undefined;
 }
+

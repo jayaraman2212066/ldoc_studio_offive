@@ -1423,8 +1423,51 @@ const api = {
     notes?: string;
     /** Preview the centered release page using the default drop template. */
     drop?: boolean;
-  }): Promise<{ ok: boolean; error?: string }> => ipcRenderer.invoke('update:simulate', opts)
+  }): Promise<{ ok: boolean; error?: string }> => ipcRenderer.invoke('update:simulate', opts),
+
+  // ─── Universal Company: Startup Gateway & Promotion Engine ─────────────────
+  startupsList: (): Promise<import('../shared/startupTypes').StartupProduct[]> =>
+    ipcRenderer.invoke('startups:list'),
+  startupsGet: (id: string): Promise<import('../shared/startupTypes').StartupProduct | undefined> =>
+    ipcRenderer.invoke('startups:get', id),
+  startupsConnect: (input: {
+    name: string;
+    tagline: string;
+    websiteUrl?: string;
+    repoUrl?: string;
+    category?: import('../shared/startupTypes').StartupCategory;
+    rawInput?: string;
+    dossier?: Partial<import('../shared/startupTypes').ProductDossier>;
+  }): Promise<import('../shared/startupTypes').StartupProduct> =>
+    ipcRenderer.invoke('startups:connect', input),
+  startupsUpdateDossier: (id: string, dossier: import('../shared/startupTypes').ProductDossier): Promise<import('../shared/startupTypes').StartupProduct | null> =>
+    ipcRenderer.invoke('startups:updateDossier', id, dossier),
+  startupsRemove: (id: string): Promise<boolean> =>
+    ipcRenderer.invoke('startups:remove', id),
+  startupsEvents: (limit?: number): Promise<import('../shared/startupTypes').StartupEvent[]> =>
+    ipcRenderer.invoke('startups:events', limit),
+  startupsCompanyOverview: (): Promise<import('../shared/startupTypes').CeoCompanyOverview> =>
+    ipcRenderer.invoke('startups:companyOverview'),
+  campaignsList: (startupId?: string): Promise<import('../shared/startupTypes').PromotionCampaign[]> =>
+    ipcRenderer.invoke('campaigns:list', startupId),
+  campaignsCreate: (opts: {
+    startupId: string;
+    title?: string;
+    type?: import('../shared/startupTypes').CampaignType;
+    channels?: import('../shared/startupTypes').CampaignChannel[];
+    directive?: string;
+  }): Promise<import('../shared/startupTypes').PromotionCampaign | null> =>
+    ipcRenderer.invoke('campaigns:create', opts),
+  campaignsUpdateAsset: (opts: {
+    startupId: string;
+    campaignId: string;
+    assetId: string;
+    content?: string;
+    status?: import('../shared/startupTypes').CampaignAsset['status'];
+  }): Promise<import('../shared/startupTypes').CampaignAsset | null> =>
+    ipcRenderer.invoke('campaigns:updateAsset', opts)
 };
+
 
 contextBridge.exposeInMainWorld('cth', api);
 

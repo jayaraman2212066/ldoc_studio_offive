@@ -12,6 +12,8 @@ import { TriggersTab } from './triggers/TriggersTab';
 import { TriggerHistoryTab } from './triggers/TriggerHistoryTab';
 import { WorkersTab } from './WorkersTab';
 import { SkillsTab } from './SkillsTab';
+import { CeoDashboardPanel } from './CeoDashboardPanel';
+import { StartupPortfolioTab } from './StartupPortfolioTab';
 import { acquireTerminal, disposeTerminal, resetTerminal } from './terminalPool';
 import { terminalInstanceKey } from './terminalRecovery';
 import { Icon } from './Icon';
@@ -46,7 +48,7 @@ import { useRtl } from '@/i18n/useDirection';
 // Both the AskMe (#human) tab and the Triggers tab live here. Triggers replaced
 // the old Schedules tab: schedules are now one of four trigger types, and the
 // whole surface lives in ./triggers (see src/shared/triggers.ts for the contract).
-type CCTab = 'terminal' | 'floor' | 'tasks' | 'human' | 'triggers' | 'trigger-history'
+type CCTab = 'ceo' | 'startups' | 'terminal' | 'floor' | 'tasks' | 'human' | 'triggers' | 'trigger-history'
   | 'memory' | 'graph' | 'activity' | 'skills' | 'workers';
 
 /** Fallback denominator for the per-agent token meter when no floor token budget
@@ -66,6 +68,8 @@ interface GHIssue {
 
 /** Canonical tab order. Not every entry is always shown — see `visibleTabs`. */
 const TABS: { key: CCTab; labelKey: string; icon: Parameters<typeof Icon>[0]['name'] }[] = [
+  { key: 'ceo', labelKey: 'CEO Radar', icon: 'sparkle' },
+  { key: 'startups', labelKey: 'Startups', icon: 'web' },
   { key: 'terminal', labelKey: 'commandCenter.tabs.terminal', icon: 'terminal' },
   { key: 'floor', labelKey: 'commandCenter.tabs.floor', icon: 'mcp' },
   { key: 'tasks', labelKey: 'commandCenter.tabs.tasks', icon: 'check' },
@@ -85,7 +89,9 @@ const TABS: { key: CCTab; labelKey: string; icon: Parameters<typeof Icon>[0]['na
  *  cols/rows and corrupt the display. */
 export function CommandCenterPanel({ agent, fullscreen = false }: { agent: Agent; fullscreen?: boolean }) {
   const { t } = useTranslation();
-  const [tab, setTab] = useState<CCTab>('terminal');
+  const [tab, setTab] = useState<CCTab>('ceo');
+  const [selectedStartupId, setSelectedStartupId] = useState<string | undefined>(undefined);
+
   // The trigger-history ledger has nothing to say until an outside party can
   // reach us, so its tab appears only once an org key or a webhook exists. This
   // is the first config-gated tab in the panel: TABS stays the canonical order
@@ -291,8 +297,30 @@ export function CommandCenterPanel({ agent, fullscreen = false }: { agent: Agent
 
       {/* Body */}
       <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+        {tab === 'ceo' && (
+          <CeoDashboardPanel
+            onOpenStartup={(id) => {
+              setSelectedStartupId(id);
+              setTab('startups');
+            }}
+            onConnectClick={() => {
+              setSelectedStartupId(undefined);
+              setTab('startups');
+            }}
+          />
+        )}
+        {tab === 'startups' && (
+          <StartupPortfolioTab
+            initialStartupId={selectedStartupId}
+            onOpenConnect={() => {
+              setSelectedStartupId(undefined);
+              setTab('ceo');
+            }}
+          />
+        )}
         {tab === 'terminal' && (
           isFullscreenedHere ? (
+
             <Centered>{t('commandCenter.terminalFullscreen')}</Centered>
           ) : agent.ptyId ? (
             <>

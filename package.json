@@ -1,14 +1,14 @@
 {
-  "name": "munder-difflin",
+  "name": "universal-company",
   "version": "0.4.6",
   "private": true,
-  "description": "Clones for you and your team, working 24/7 — a free, local-first multi-agent harness that turns the CLI coding agent you already run into a clone of you, coordinating an office of agents on your machine.",
+  "description": "Universal Company — Autonomous Multi-Agent Corporate Platform & Startup Accelerator.",
   "main": "out/main/index.js",
-  "author": "Chaitanya Giri",
-  "homepage": "https://munderdiffl.in/",
+  "author": "Universal Company",
+  "homepage": "https://universalcompany.ai",
   "repository": {
     "type": "git",
-    "url": "https://github.com/chaitanyagiri/munder-difflin.git"
+    "url": "https://github.com/universalcompany/universal-company.git"
   },
   "scripts": {
     "dev": "electron-vite dev",

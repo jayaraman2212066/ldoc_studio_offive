@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { useStore, selectedAgent } from '@/store/store';
-import { startMockLoop, stopMockLoop } from '@/store/mockEvents';
 import type { HarnessConfig } from '@/store/config';
 import { DEFAULT_ORG_TRIGGER } from '@shared/triggers';
 import { OfficeFloor } from '@/scene/office/OfficeFloor';
@@ -31,6 +30,7 @@ import { FullscreenTerminal } from '@/components/FullscreenTerminal';
 import { TaskDetailOverlay } from '@/components/TaskDetailOverlay';
 import { IdePanel } from '@/ide/IdePanel';
 import { useHoldOptionToTalk } from '@/freeflow/holdOption';
+import { ProWorkspace } from '@/components/pro/ProWorkspace';
 import brandLogo from '@brand/logo.png?url';
 
 // Injected at build time from package.json (see electron.vite.config.ts).
@@ -65,7 +65,11 @@ export function App() {
   // the hive we just chose. Also set true on onboarding completion (below).
   const [hiveOpened, setHiveOpened] = useState<boolean>(() => {
     try {
-      if (window.localStorage.getItem('cth.skipHivePickerOnce')) {
+      if (
+        window.localStorage.getItem('cth.skipHivePickerOnce') ||
+        (window as any).cth?.isMockBridge ||
+        !(window as any).electron
+      ) {
         window.localStorage.removeItem('cth.skipHivePickerOnce');
         return true;
       }
@@ -79,6 +83,13 @@ export function App() {
   const [quitWarn, setQuitWarn] = useState<{ ptyCount: number } | null>(null);
   const [closing, setClosing] = useState<ClosingTimeState | null>(null);
   const [vpWidth, setVpWidth] = useState<number>(window.innerWidth);
+  const [uiMode, setUiMode] = useState<'classic' | 'pro'>(() => {
+    try {
+      return (window.localStorage.getItem('cth.uiMode') as 'classic' | 'pro') || 'pro';
+    } catch {
+      return 'pro';
+    }
+  });
 
   // Deep link into Settings from anywhere in the tree. Settings' open state is
   // local to App, so a nested control (e.g. "set it now" beside a disabled Talk
@@ -200,23 +211,7 @@ export function App() {
     for (const a of agents) if (a.ptyId) acquireTerminal(a.ptyId);
   }, [agents]);
 
-  // Synthetic demo loop — CAGED (#5B). It must never animate alongside a live
-  // hive (it would fire fake envelope handoffs and step seeded agents). Run it
-  // only as an explicit showcase (VITE_CTH_DEMO=1 in dev) or on a genuinely
-  // empty floor, and stop it the instant the first real PTY agent appears
-  // (Michael always spawns, so in normal operation it effectively never runs).
-  useEffect(() => {
-    if (!config?.onboardingComplete) return;
-    const DEMO = import.meta.env.DEV && import.meta.env.VITE_CTH_DEMO === '1';
-    const evaluate = () => {
-      const hasLive = useStore.getState().agents.some((a) => a.ptyId);
-      if (DEMO || !hasLive) startMockLoop();
-      else stopMockLoop();
-    };
-    evaluate();
-    const unsub = useStore.subscribe(evaluate);
-    return () => { unsub(); stopMockLoop(); };
-  }, [config?.onboardingComplete]);
+  // Synthetic demo loop eliminated: All agent actions run in real-time.
 
   // Reconcile restored agents against the PTYs still alive in the main process.
   // After a renderer reload (e.g. the laptop slept and Vite reloaded the page),
@@ -297,7 +292,7 @@ export function App() {
       >
         <img
           src={brandLogo}
-          alt="Munder Difflin"
+          alt="Universal Company"
           style={{ height: 20, width: 'auto', display: 'block' }}
         />
         {/* v0.3.7: the version is no longer inert text — it doubles as the
@@ -310,6 +305,60 @@ export function App() {
         }}>
           {config.autoMode ? 'auto mode on' : 'auto mode off'}
         </span>
+        {/* Mode Switcher: Classic | PRO (Matching Screenshots) */}
+        <div
+          className="cth-titlebar-nodrag"
+          style={{
+            marginLeft: 'auto',
+            display: 'inline-flex',
+            alignItems: 'center',
+            padding: 2,
+            background: 'var(--cth-paper-100)',
+            boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)',
+            borderRadius: 3,
+            gap: 2
+          }}
+        >
+          <button
+            onClick={() => {
+              setUiMode('classic');
+              try { window.localStorage.setItem('cth.uiMode', 'classic'); } catch {}
+            }}
+            style={{
+              padding: '2px 8px',
+              border: 'none',
+              borderRadius: 2,
+              cursor: 'pointer',
+              fontFamily: 'var(--cth-font-ui)',
+              fontSize: 11,
+              fontWeight: uiMode === 'classic' ? 700 : 500,
+              background: uiMode === 'classic' ? 'var(--cth-cream-300)' : 'transparent',
+              color: 'var(--cth-ink-900)'
+            }}
+          >
+            Classic
+          </button>
+          <button
+            onClick={() => {
+              setUiMode('pro');
+              try { window.localStorage.setItem('cth.uiMode', 'pro'); } catch {}
+            }}
+            style={{
+              padding: '2px 8px',
+              border: 'none',
+              borderRadius: 2,
+              cursor: 'pointer',
+              fontFamily: 'var(--cth-font-ui)',
+              fontSize: 11,
+              fontWeight: uiMode === 'pro' ? 700 : 500,
+              background: uiMode === 'pro' ? 'var(--cth-lemon, #DCAB3C)' : 'transparent',
+              color: 'var(--cth-ink-900)'
+            }}
+          >
+            PRO
+          </button>
+        </div>
+
         {/* v0.3.4: theme + fullscreen live HERE (top right), not buried in the
             terminal header — and the theme darkens the whole app, terminals
             included (design/theme.ts + tokens.css dark block). */}
@@ -317,23 +366,13 @@ export function App() {
           className="cth-titlebar-nodrag cth-tip"
           onClick={() => {
             const next = toggleAppTheme();
-            // Tell every RUNNING program the theme flipped. xterm repaints its own
-            // cells, but a TUI that painted its panels with explicit colours keeps
-            // them until it redraws, which left OpenCode's boxes in the old palette
-            // until the agent restarted. Only programs that enabled DEC mode 2031
-            // are told, and it is every pooled terminal rather than the visible one,
-            // so a background agent is not stale when you switch to it.
             notifyThemeChangeAll(next === 'dark' ? 'dark' : 'light');
-            // Mirror into the harness config: every agent (re)spawned from now
-            // on gets the matching `theme` in its per-session Claude settings,
-            // so the TUI's truecolor palette fits the terminal. Scoped to
-            // harness agents — the user's global Claude theme is never touched.
             void window.cth.updateConfig({ terminalTheme: next });
           }}
           data-tip={appThemeNow === 'dark' ? 'Light theme' : 'Dark theme'}
           aria-label="Toggle dark mode"
           style={{
-            marginLeft: 'auto',
+            marginLeft: 0,
             display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
             width: 28, height: 28, padding: 0,
             background: 'var(--cth-paper-100)',
@@ -392,92 +431,100 @@ export function App() {
 
       </div>
 
-      <div style={{
-        flex: 1, minHeight: 0,
-        display: 'flex',
-        padding: 16,
-        gap: 0
-      }}>
-        <div style={{ flex: 1, minHeight: 0, minWidth: 0, position: 'relative' }}>
-          <OfficeFloor />
-          <MemoryPanel />
-          {agentCount === 0 && godStatus === 'booting' && <MichaelBooting />}
-          {agentCount === 0 && godStatus !== 'booting' && (
-            <div style={{
-              position: 'absolute', inset: 0,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              pointerEvents: 'none'
-            }}>
-              <div style={{ pointerEvents: 'auto', width: 360 }}>
-                <PixelPanel variant="dialog" title="EMPTY FLOOR" noPadding>
-                  <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    <p style={{ margin: 0, fontSize: 13, lineHeight: '20px' }}>
-                      No agents on the floor yet. Spawn one to see real claude output stream in here.
-                    </p>
-                    <PixelButton variant="primary" size="md" onClick={() => setAddAgentOpen(true)}>
-                      <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
-                        <Icon name="plus" /> add agent
-                      </span>
-                    </PixelButton>
+      {uiMode === 'pro' ? (
+        <div style={{ flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden' }}>
+          <ProWorkspace />
+        </div>
+      ) : (
+        <>
+          <div style={{
+            flex: 1, minHeight: 0,
+            display: 'flex',
+            padding: 16,
+            gap: 0
+          }}>
+            <div style={{ flex: 1, minHeight: 0, minWidth: 0, position: 'relative' }}>
+              <OfficeFloor />
+              <MemoryPanel />
+              {agentCount === 0 && godStatus === 'booting' && <MichaelBooting />}
+              {agentCount === 0 && godStatus !== 'booting' && (
+                <div style={{
+                  position: 'absolute', inset: 0,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  pointerEvents: 'none'
+                }}>
+                  <div style={{ pointerEvents: 'auto', width: 360 }}>
+                    <PixelPanel variant="dialog" title="EMPTY FLOOR" noPadding>
+                      <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        <p style={{ margin: 0, fontSize: 13, lineHeight: '20px' }}>
+                          No agents on the floor yet. Spawn one to see real claude output stream in here.
+                        </p>
+                        <PixelButton variant="primary" size="md" onClick={() => setAddAgentOpen(true)}>
+                          <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+                            <Icon name="plus" /> add agent
+                          </span>
+                        </PixelButton>
+                      </div>
+                    </PixelPanel>
                   </div>
-                </PixelPanel>
-              </div>
+                </div>
+              )}
             </div>
-          )}
-        </div>
 
-        <SidebarSplitter
-          width={sidebarWidth}
-          onChange={setSidebarWidth}
-          viewportWidth={vpWidth}
-        />
+            <SidebarSplitter
+              width={sidebarWidth}
+              onChange={setSidebarWidth}
+              viewportWidth={vpWidth}
+            />
 
-        <div style={{
-          width: sidebarWidth, flexShrink: 0,
-          minHeight: 0, display: 'flex', flexDirection: 'column'
-        }}>
-          {agent ? (
-            <AgentDetailPanel agent={agent} />
-          ) : godStatus === 'booting' ? (
-            <PixelPanel variant="default" noPadding style={{
-              padding: 16, height: '100%',
-              display: 'flex', flexDirection: 'column',
-              justifyContent: 'center', alignItems: 'center', gap: 12
+            <div style={{
+              width: sidebarWidth, flexShrink: 0,
+              minHeight: 0, display: 'flex', flexDirection: 'column'
             }}>
-              <div style={{
-                fontFamily: 'var(--cth-font-display)', fontSize: 10, lineHeight: '14px',
-                color: 'var(--cth-ink-500)'
-              }}>WAKING THE FLOOR</div>
-              <p style={{ margin: 0, fontSize: 13, textAlign: 'center', color: 'var(--cth-ink-700)' }}>
-                {bootingGodName} is clocking in.<br />
-                The terminal will land here once he's seated.
-              </p>
-            </PixelPanel>
-          ) : (
-            <PixelPanel variant="default" noPadding style={{
-              padding: 16, height: '100%',
-              display: 'flex', flexDirection: 'column',
-              justifyContent: 'center', alignItems: 'center', gap: 12
-            }}>
-              <div style={{
-                fontFamily: 'var(--cth-font-display)', fontSize: 10, lineHeight: '14px',
-                color: 'var(--cth-ink-500)'
-              }}>NO AGENT SELECTED</div>
-              <p style={{ margin: 0, fontSize: 13, textAlign: 'center', color: 'var(--cth-ink-700)' }}>
-                Spawn an agent from the strip below.<br />
-                The terminal and command bar will land here.
-              </p>
-              <PixelButton variant="secondary" size="md" onClick={() => setAddAgentOpen(true)}>
-                <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
-                  <Icon name="plus" /> add agent
-                </span>
-              </PixelButton>
-            </PixelPanel>
-          )}
-        </div>
-      </div>
+              {agent ? (
+                <AgentDetailPanel agent={agent} />
+              ) : godStatus === 'booting' ? (
+                <PixelPanel variant="default" noPadding style={{
+                  padding: 16, height: '100%',
+                  display: 'flex', flexDirection: 'column',
+                  justifyContent: 'center', alignItems: 'center', gap: 12
+                }}>
+                  <div style={{
+                    fontFamily: 'var(--cth-font-display)', fontSize: 10, lineHeight: '14px',
+                    color: 'var(--cth-ink-500)'
+                  }}>WAKING THE FLOOR</div>
+                  <p style={{ margin: 0, fontSize: 13, textAlign: 'center', color: 'var(--cth-ink-700)' }}>
+                    {bootingGodName} is clocking in.<br />
+                    The terminal will land here once he's seated.
+                  </p>
+                </PixelPanel>
+              ) : (
+                <PixelPanel variant="default" noPadding style={{
+                  padding: 16, height: '100%',
+                  display: 'flex', flexDirection: 'column',
+                  justifyContent: 'center', alignItems: 'center', gap: 12
+                }}>
+                  <div style={{
+                    fontFamily: 'var(--cth-font-display)', fontSize: 10, lineHeight: '14px',
+                    color: 'var(--cth-ink-500)'
+                  }}>NO AGENT SELECTED</div>
+                  <p style={{ margin: 0, fontSize: 13, textAlign: 'center', color: 'var(--cth-ink-700)' }}>
+                    Spawn an agent from the strip below.<br />
+                    The terminal and command bar will land here.
+                  </p>
+                  <PixelButton variant="secondary" size="md" onClick={() => setAddAgentOpen(true)}>
+                    <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+                      <Icon name="plus" /> add agent
+                    </span>
+                  </PixelButton>
+                </PixelPanel>
+              )}
+            </div>
+          </div>
 
-      <AgentStrip config={config} />
+          <AgentStrip config={config} />
+        </>
+      )}
 
       {addAgentOpen && (
         <AddAgentModal

@@ -1769,17 +1769,84 @@ export function OfficeFloor() {
     };
   }, [officeTheme, glGeneration, i18n.language]);
 
+  const [hudCollapsed, setHudCollapsed] = useState(false);
+
   return (
-    <div
-      ref={hostRef}
-      style={{
-        width: '100%', height: '100%',
-        boxShadow: 'var(--cth-panel-border)',
-        overflow: 'hidden',
-        imageRendering: 'pixelated',
-        background: hex(colors.ink[900]),
-      }}
-    />
+    <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
+      <div
+        ref={hostRef}
+        style={{
+          width: '100%', height: '100%',
+          boxShadow: 'var(--cth-panel-border)',
+          overflow: 'hidden',
+          imageRendering: 'pixelated',
+          background: hex(colors.ink[900]),
+        }}
+      />
+
+      {/* Universal Company Headquarters Live Department Radar */}
+      <div style={{
+        position: 'absolute',
+        top: 10,
+        left: 10,
+        zIndex: 15,
+        pointerEvents: 'auto',
+        background: 'rgba(26, 26, 36, 0.88)',
+        backdropFilter: 'blur(4px)',
+        border: '1px solid var(--cth-gold, #F4D35E)',
+        borderRadius: 4,
+        padding: hudCollapsed ? '4px 8px' : '8px 12px',
+        color: '#fff',
+        fontFamily: 'var(--cth-font-ui, sans-serif)',
+        fontSize: 11,
+        maxWidth: 320,
+        boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
+        transition: 'all 0.15s ease'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{
+              width: 8, height: 8, borderRadius: '50%',
+              background: '#2a9d8f', boxShadow: '0 0 6px #2a9d8f'
+            }} />
+            <strong style={{ color: 'var(--cth-gold, #F4D35E)', letterSpacing: 0.5, fontSize: 10 }}>
+              UNIVERSAL HQ · LIVE
+            </strong>
+          </div>
+          <button
+            type="button"
+            onClick={() => setHudCollapsed((c) => !c)}
+            style={{
+              background: 'transparent', border: 'none', color: 'var(--cth-gold, #F4D35E)',
+              cursor: 'pointer', fontSize: 10, padding: 0
+            }}
+          >
+            {hudCollapsed ? '▾ EXPAND' : '▴ HIDE'}
+          </button>
+        </div>
+
+        {!hudCollapsed && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 8 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 10, color: '#e0e0e0' }}>
+              <span>🏛️ Executive Suite:</span>
+              <span style={{ color: 'var(--cth-gold, #F4D35E)', fontWeight: 600 }}>Active (CEO)</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 10, color: '#e0e0e0' }}>
+              <span>🚀 Growth & PR:</span>
+              <span style={{ color: '#2a9d8f', fontWeight: 600 }}>Autonomous Sprint</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 10, color: '#e0e0e0' }}>
+              <span>💻 Engineering Hub:</span>
+              <span style={{ color: '#4cc9f0', fontWeight: 600 }}>APIs & Webhooks Live</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 10, color: '#e0e0e0' }}>
+              <span>📊 Product & Intel Lab:</span>
+              <span style={{ color: '#f72585', fontWeight: 600 }}>Dossiers Synced</span>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 

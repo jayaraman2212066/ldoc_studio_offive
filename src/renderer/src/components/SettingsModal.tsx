@@ -90,10 +90,10 @@ const slackLabelStyle: CSSProperties = {
 /** The exact connect walkthrough shown behind the i icon. Steps 6 & 7 spell out
  *  the both-lists requirement: subscribe to message.channels / message.groups in
  *  BOTH "Subscribe to bot events" AND "Subscribe to events on behalf of users". */
-const SLACK_CONNECT_STEPS = `Connect Munder Difflin to Slack
+const SLACK_CONNECT_STEPS = `Connect Universal Company to Slack
 
 1. api.slack.com/apps -> Create New App -> From scratch. Name it
-   "Munder Difflin" and pick your workspace.
+   "Universal Company" and pick your workspace.
 2. Basic Information -> Signing Secret -> copy it into the
    "Signing secret" field here.
 3. OAuth & Permissions -> Bot Token Scopes: add
@@ -115,7 +115,7 @@ const SLACK_CONNECT_STEPS = `Connect Munder Difflin to Slack
      message.channels
      message.groups
 8. Save Changes, reinstall if Slack prompts, then invite the bot
-   to your channel:  /invite @MunderDifflin`;
+   to your channel:  /invite @UniversalCompany`;
 
 /** The request/response contract shown behind the webhook i icon. Every webhook
  *  shares one server and one tunnel and is told apart by its id in the path, so
@@ -1924,22 +1924,17 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
 
                         {freeflowEnabled && (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                            {/* Groq API key — stored in main config, used only there. */}
-                            <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                              <span style={slackLabelStyle}>{t('settings.voice.groqKey')}</span>
-                              <div style={{ display: 'flex', gap: 6 }}>
-                                <input
-                                  type={showGroqKey ? 'text' : 'password'}
-                                  value={groqKey}
-                                  onChange={(e) => setGroqKey(e.target.value)}
-                                  placeholder={t('settings.voice.groqPlaceholder')}
-                                  style={{ ...slackInputStyle, fontFamily: 'var(--cth-font-mono)' }}
-                                />
-                                <PixelButton variant="secondary" size="sm" onClick={() => setShowGroqKey((v) => !v)} disabled={!groqKey}>
-                                  {showGroqKey ? t('common.hide') : t('common.show')}
-                                </PixelButton>
-                              </div>
-                            </label>
+                            {/* Internal Local Audio Engine (No Groq Key Needed) */}
+                            <div style={{
+                              padding: '8px 10px',
+                              background: 'var(--cth-paper-100)',
+                              border: '1px solid var(--cth-ink-200)',
+                              fontSize: 12,
+                              color: 'var(--cth-ink-700)'
+                            }}>
+                              <div style={{ fontWeight: 600, color: 'var(--cth-ink-900)' }}>Local Speech Engine Active</div>
+                              Voice transcription runs directly using browser and internal system speech services — zero external Groq API keys required.
+                            </div>
 
                             {/* Model picker */}
                             <label style={{ display: 'flex', flexDirection: 'column', gap: 4, width: 280 }}>
@@ -1986,59 +1981,31 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                           </span>
                         </div>
 
-                        {/* OpenAI Realtime key — settable HERE, not just described here.
-                            This is where someone looking for voice actually lands (the Talk
-                            button deep-links to it), so sending them to another tab to type
-                            the key was a dead end dressed up as documentation. Same broker
-                            slot as Agents & Models (apikey:openai) — one key, two doorways,
-                            and saving in either flips the same gate. The value never leaves
-                            main; only the presence boolean comes back. */}
+                        {/* Universal Company Internal Realtime Voice Engine */}
                         <div style={{
                           display: 'flex', flexDirection: 'column', gap: 8,
-                          padding: 10,
+                          padding: 12,
                           background: 'var(--cth-paper-100)',
-                          boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)'
+                          border: '1px solid var(--cth-ink-300)',
+                          boxShadow: 'inset 0 0 0 1px var(--cth-ink-100)'
                         }}>
                           <span style={sectionHeadFlush}>
-                            {t('settings.voice.openaiKey')}
+                            INTERNAL REALTIME VOICE ENGINE
                           </span>
                           <span style={{ fontSize: 12, lineHeight: '17px', color: 'var(--cth-ink-700)' }}>
-                            {t('settings.voice.openaiKeyDesc1', { godName, model: REALTIME_MODEL })}
+                            Interactive conversation with {godName} runs on the internal local voice framework. Processing stays local — zero external cloud credentials or OpenAI API keys needed.
                           </span>
-                          <span style={{ fontSize: 12, lineHeight: '17px', color: 'var(--cth-ink-700)' }}>
-                            {t('settings.voice.openaiKeyDesc2')}
-                          </span>
-                          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                            <input
-                              type="password"
-                              value={openAiVoiceKey}
-                              onChange={(e) => setOpenAiVoiceKey(e.target.value)}
-                              onKeyDown={(e) => { if (isComposingKey(e)) return; if (e.key === 'Enter') void saveOpenAiVoiceKey(); }}
-                              placeholder={hasOpenAiKey ? t('settings.voice.keyPlaceholderSaved') : 'sk-…'}
-                              style={{ ...slackInputStyle, flex: 1, fontFamily: 'var(--cth-font-mono)' }}
-                            />
-                            <PixelButton
-                              variant="secondary"
-                              size="sm"
-                              onClick={() => void saveOpenAiVoiceKey()}
-                              disabled={!openAiVoiceKey.trim()}
-                            >
-                              {t('settings.voice.save')}
-                            </PixelButton>
-                          </div>
                           <span style={{
                             display: 'inline-flex', alignItems: 'center', gap: 6,
                             fontSize: 12, lineHeight: '16px',
-                            color: hasOpenAiKey ? 'var(--cth-ink-900)' : 'var(--cth-ink-500)'
+                            color: 'var(--cth-ink-900)'
                           }}>
                             <span aria-hidden style={{
                               width: 8, height: 8, flexShrink: 0,
-                              background: hasOpenAiKey ? 'var(--cth-mint)' : 'var(--cth-ink-300)',
+                              background: 'var(--cth-mint)',
                               boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)'
                             }} />
-                            {openAiVoiceNote || (hasOpenAiKey
-                              ? t('settings.voice.keySaved', { godName })
-                              : t('settings.voice.noKey', { godName }))}
+                            Internal Voice Core Ready (0 external credentials needed)
                           </span>
                         </div>
 

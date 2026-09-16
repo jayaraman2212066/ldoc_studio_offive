@@ -92,8 +92,11 @@ import {
   codexRemoteSocketFits,
   withCodexRemoteArgs
 } from '../shared/codexRemote';
+import { StartupGateway } from './startupGateway';
+import { PromotionEngine } from './promotionEngine';
 
 const isDev = !!process.env.ELECTRON_RENDERER_URL;
+
 
 // Keep the main process alive on an unexpected throw/rejection. The harness is a
 // multi-agent supervisor — a single stray throw (e.g. node-pty's ConPTY console
@@ -311,6 +314,9 @@ const memory = new MemoryManager(
 );
 // Enterprise Knowledge Graph — file-backed store + agent CLI (default OFF).
 const knowledge = new KnowledgeManager();
+// Universal Company — Startup Gateway & Autonomous Promotion Engine
+const startupGateway = new StartupGateway(knowledge);
+const promotionEngine = new PromotionEngine(startupGateway);
 /** Reads the reflect tunables from config each tick (defaults baked in here so a
  *  pre-existing config.json without the keys still gets sane values). */
 function reflectSettings(): ReflectSettings {
@@ -2212,9 +2218,11 @@ async function handleHireLink(link: string): Promise<void> {
 // exe+args form or the registration points at electron.exe with no entry.
 if (process.defaultApp) {
   if (process.argv.length >= 2) {
+    app.setAsDefaultProtocolClient('universalcompany', process.execPath, [resolve(process.argv[1])]);
     app.setAsDefaultProtocolClient('munderdifflin', process.execPath, [resolve(process.argv[1])]);
   }
 } else {
+  app.setAsDefaultProtocolClient('universalcompany');
   app.setAsDefaultProtocolClient('munderdifflin');
 }
 
@@ -2232,7 +2240,7 @@ if (!gotInstanceLock) {
       if (mainWindow.isMinimized()) mainWindow.restore();
       mainWindow.focus();
     }
-    const link = argv.find((a) => a.startsWith('munderdifflin://'));
+    const link = argv.find((a) => a.startsWith('universalcompany://') || a.startsWith('munderdifflin://'));
     if (link) void handleHireLink(link);
   });
 }
@@ -2292,7 +2300,7 @@ function createWindow(opts: { floor?: boolean } = {}): BrowserWindow {
     ...(geom && geom.x !== undefined && geom.y !== undefined ? { x: geom.x, y: geom.y } : {}),
     minWidth: MIN_WIN.width,
     minHeight: MIN_WIN.height,
-    title: isFloor ? 'Munder Difflin — Floor' : 'Munder Difflin',
+    title: isFloor ? 'Universal Company — Floor' : 'Universal Company',
     backgroundColor: '#FFF8E7',
     titleBarStyle: 'hiddenInset',
     show: false,
@@ -3518,7 +3526,20 @@ ipcMain.handle('hive:patchAgentRole', (_evt, id: unknown, role: unknown) => {
   return hive.patchAgentRole(id, role);
 });
 
+// ─── IPC: Universal Company — Startup Gateway & Promotion Engine ─────────────
+ipcMain.handle('startups:list', () => startupGateway.listStartups());
+ipcMain.handle('startups:get', (_evt, id: unknown) => (typeof id === 'string' ? startupGateway.getStartup(id) : undefined));
+ipcMain.handle('startups:connect', (_evt, input: any) => startupGateway.connectStartup(input));
+ipcMain.handle('startups:updateDossier', (_evt, id: unknown, dossier: any) => (typeof id === 'string' ? startupGateway.updateStartupDossier(id, dossier) : null));
+ipcMain.handle('startups:remove', (_evt, id: unknown) => (typeof id === 'string' ? startupGateway.removeStartup(id) : false));
+ipcMain.handle('startups:events', (_evt, limit: unknown) => startupGateway.listEvents(typeof limit === 'number' ? limit : 50));
+ipcMain.handle('startups:companyOverview', () => startupGateway.getCompanyOverview(ptyManager.list().length));
+ipcMain.handle('campaigns:list', (_evt, startupId: unknown) => (typeof startupId === 'string' ? promotionEngine.listCampaigns(startupId) : promotionEngine.listAllCampaigns()));
+ipcMain.handle('campaigns:create', (_evt, opts: any) => promotionEngine.createCampaign(opts));
+ipcMain.handle('campaigns:updateAsset', (_evt, opts: any) => promotionEngine.updateAsset(opts));
+
 // ─── IPC: Settings hero payload (remote data, cached) ───────────────────────
+
 /** Plan copy and sponsor, fetched from the repo so they can change without a
  *  release. Validated in shared/heroPayload before it reaches the renderer. */
 ipcMain.handle('hero:payload', async (_evt, force: unknown) =>
@@ -5293,7 +5314,7 @@ app.whenReady().then(() => {
   void loadModelCatalog(MODEL_CATALOG_CACHE()).catch(() => { /* never fatal */ });
 
   // A cold-start deep link (Windows/Linux) rides in on OUR argv.
-  const startupHireLink = process.argv.find((a) => a.startsWith('munderdifflin://'));
+  const startupHireLink = process.argv.find((a) => a.startsWith('universalcompany://') || a.startsWith('munderdifflin://'));
   if (startupHireLink) void handleHireLink(startupHireLink);
 
   // Hand every spawned agent the path to the Slack reply discovery file via the
