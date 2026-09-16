@@ -1,6 +1,7 @@
 node_modules/
 dist/*
 !dist/command-centre-v2.html
+!dist/index.html
 data/*
 !data/tasks.json
 office.config.local.json
