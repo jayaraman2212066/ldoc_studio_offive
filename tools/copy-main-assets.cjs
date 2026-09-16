@@ -1,6 +1,6 @@
 'use strict';
 
-const { copyFileSync, mkdirSync, statSync } = require('node:fs');
+const { copyFileSync, mkdirSync, statSync, cpSync, existsSync } = require('node:fs');
 const { dirname, join } = require('node:path');
 
 const ROOT = join(__dirname, '..');
@@ -23,3 +23,13 @@ for (const [fromRel, toRel] of MAIN_ASSETS) {
   }
   console.log(`[copy-main-assets] ${fromRel} -> ${toRel}`);
 }
+
+// Sync out/renderer to dist for static web & Vercel deployment
+const rendererOut = join(ROOT, 'out', 'renderer');
+const distDir = join(ROOT, 'dist');
+if (existsSync(rendererOut)) {
+  mkdirSync(distDir, { recursive: true });
+  cpSync(rendererOut, distDir, { recursive: true });
+  console.log(`[copy-main-assets] Synced out/renderer -> dist for Vercel/web deployment`);
+}
+
